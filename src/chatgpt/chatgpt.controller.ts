@@ -1,10 +1,7 @@
-import { Controller, Post, Body, BadRequestException, Res, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, BadRequestException } from '@nestjs/common';
 import { ChatgptService } from './chatgpt.service';
 import { GenerateTextDto, ChatCompletionDto } from './dto/create-chatgpt.dto';
-import { XmlToAngularDto } from './dto/xml-to-angular.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
-import { Response } from 'express';
-import { json } from 'body-parser';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('ChatGPT')
 @Controller('chatgpt')
@@ -48,57 +45,5 @@ export class ChatgptController {
     };
   }
 
-  @Post('generate-angular')
-  @ApiOperation({ summary: 'Genera un proyecto Angular a partir de XML utilizando OpenAI' })
-  @ApiResponse({ status: 200, description: 'Proyecto Angular generado con éxito' })
-  @ApiResponse({ status: 400, description: 'Solicitud inválida' })
-  @ApiResponse({ status: 500, description: 'Error del servidor' })
-  @ApiConsumes('application/json')
-  @ApiBody({
-    type: XmlToAngularDto,
-    examples: {
-      ejemplo1: {
-        summary: 'Ejemplo básico',
-        value: {
-          xml: '<App><Interface name="Test"></Interface></App>',
-          specificInstructions: 'Incluir un dashboard con gráficos'
-        }
-      }
-    }
-  })
-  async generateAngularFromXml(
-    @Body() xmlToAngularDto: XmlToAngularDto,
-    @Res() res: Response
-  ) {
-    try {
-      if (!xmlToAngularDto.xml) {
-        throw new BadRequestException('El contenido XML es requerido');
-      }
 
-      // Llamar al servicio para generar el proyecto Angular
-      const zipBuffer = await this.chatgptService.generateAngularFromXml(
-        xmlToAngularDto.xml,
-        xmlToAngularDto.specificInstructions,
-        xmlToAngularDto.model
-      );
-
-      // Configurar la respuesta para descargar un archivo ZIP
-      res.set({
-        'Content-Type': 'application/zip',
-        'Content-Disposition': 'attachment; filename=angular-openai-project.zip',
-      });
-
-      res.status(HttpStatus.OK).send(zipBuffer);
-    } catch (error) {
-      // Manejar errores
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      
-      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        message: 'Error generando proyecto Angular con OpenAI',
-        error: error.message,
-      });
-    }
-  }
 }

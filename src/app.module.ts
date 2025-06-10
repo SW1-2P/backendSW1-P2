@@ -7,8 +7,9 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { DiagramasModule } from './diagramas/diagramas.module';
 import { MockupsModule } from './mockups/mockups.module';
-import { GeneratorModule } from './generator/generator.module';
+
 import { ChatgptModule } from './chatgpt/chatgpt.module';
+import { MobileGeneratorModule } from './mobile-generator/mobile-generator.module';
 
 @Module({
   imports: [
@@ -27,8 +28,8 @@ import { ChatgptModule } from './chatgpt/chatgpt.module';
     AuthModule,
     DiagramasModule,
     MockupsModule,
-    GeneratorModule,
     ChatgptModule,
+    MobileGeneratorModule,
   ],
   controllers: [AppController],
   providers: [AppService],

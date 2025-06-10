@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { Diagrama } from '../../diagramas/entities/diagrama.entity';
 import { Mockup } from '../../mockups/entities/mockup.entity';
+import { MobileApp } from '../../mobile-generator/entities/mobile-app.entity';
 export enum Rol {
   ADMIN = 'admin',
   EDITOR='editor'
@@ -28,6 +29,9 @@ export class Usuario {
 
   @OneToMany(() => Mockup, mockup => mockup.usuario)
   mockups: Mockup[];
+
+  @OneToMany(() => MobileApp, mobileApp => mobileApp.usuario)
+  mobileApps: MobileApp[];
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;

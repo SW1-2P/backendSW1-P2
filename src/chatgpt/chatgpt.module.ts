@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ChatgptService } from './chatgpt.service';
 import { ChatgptController } from './chatgpt.controller';
-import { GeneratorModule } from '../generator/generator.module';
 
 @Module({
-  imports: [GeneratorModule],
+  imports: [],
   controllers: [ChatgptController],
   providers: [ChatgptService],
   exports: [ChatgptService],

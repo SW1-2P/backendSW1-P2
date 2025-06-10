@@ -168,5 +168,3 @@ Códigos de estado comunes:
 - [PostgreSQL](https://www.postgresql.org/)
 - [JWT](https://jwt.io/)
 - [Swagger](https://swagger.io/)
-# BackP1-SW1
-# BackP1-SW1
