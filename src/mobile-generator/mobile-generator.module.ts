@@ -10,6 +10,7 @@ import { AngularGenerator } from './generators/angular-generator';
 import { MockupIntegrationService } from './services/mockup-integration.service';
 import { FlutterPromptService } from './services/flutter-prompt.service';
 import { FlutterScreenDetectorService } from './services/flutter-screen-detector.service';
+import { PromptEnrichmentService } from './services/prompt-enrichment.service';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { FlutterScreenDetectorService } from './services/flutter-screen-detector
     MockupIntegrationService,
     FlutterPromptService,
     FlutterScreenDetectorService,
+    PromptEnrichmentService,
   ],
   exports: [
     MobileGeneratorService,

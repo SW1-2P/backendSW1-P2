@@ -160,13 +160,25 @@ USAR FORMATO [FILE: ruta] para cada archivo generado`;
   }
 
   createUserPrompt(context: GenerationContext, screenDetection?: any): string {
-    // Generar instrucciones estructuradas del XML
-    const structuredInstructions = context.xml ? this.createStructuredInstructions(context.xml, screenDetection) : '';
+    // Si HAY XML, usar flujo específico para XML
+    if (context.xml) {
+      return this.createXmlBasedPrompt(context, screenDetection);
+    }
     
-    return `Genera una aplicación Flutter completa con las siguientes especificaciones:
+    // Si NO hay XML, usar flujo específico para prompts
+    return this.createPromptBasedPrompt(context);
+  }
+
+  /**
+   * Crea prompt optimizado para generación desde XML (flujo original)
+   */
+  private createXmlBasedPrompt(context: GenerationContext, screenDetection?: any): string {
+    const structuredInstructions = this.createStructuredInstructions(context.xml!, screenDetection);
+    
+    return `Genera una aplicación Flutter completa desde mockup XML:
 
 ANÁLISIS DEL MOCKUP:
-${context.xml ? this.analyzeXmlContent(context.xml, screenDetection) : 'No hay XML disponible'}
+${this.analyzeXmlContent(context.xml!, screenDetection)}
 
 ${structuredInstructions}
 
@@ -174,7 +186,7 @@ CONTEXTO ADICIONAL:
 - Prompt del usuario: ${context.prompt || 'No especificado'}
 - Configuración: ${JSON.stringify(context.config || {})}
 
-REQUERIMIENTOS ESPECÍFICOS:
+REQUERIMIENTOS ESPECÍFICOS PARA XML:
 1. **ANALIZA EL XML** y extrae elementos específicos (botones, inputs, radio buttons, textos)
 2. **DETECTA MÚLTIPLES PANTALLAS** por número de elementos android.phone2
 3. **GENERA AppDrawer AUTOMÁTICAMENTE** si hay múltiples pantallas
@@ -192,20 +204,86 @@ ${screenDetection ? this.formatScreenDetection(screenDetection) : ''}
 
 XML COMPLETO PARA REFERENCIA:
 \`\`\`xml
-${context.xml ? context.xml.substring(0, 2000) + (context.xml.length > 2000 ? '...[truncated]' : '') : 'No disponible'}
+${context.xml!.substring(0, 2000) + (context.xml!.length > 2000 ? '...[truncated]' : '')}
 \`\`\`
 
 VALIDACIÓN REQUERIDA:
-- ✅ CreateProjectScreen DEBE tener AppRadioGroup con User access
+- ✅ Generar EXACTAMENTE las pantallas del XML
 - ✅ TODOS los textos del mockup deben aparecer en las pantallas
 - ✅ Colores del mockup aplicados en AppTheme
 - ✅ Navigation drawer para múltiples pantallas
 - ✅ Imports correctos en todas las pantallas
-- ✅ NAVEGACIÓN CON GoRouter: usar context.go() y context.push()
-- ✅ NUNCA usar Navigator.pushNamed() en AppDrawer
-- ✅ Import 'package:go_router/go_router.dart' en AppDrawer
 
 Genera MÍNIMO 6 archivos de código Flutter funcional con imports relativos correctos.`;
+  }
+
+  /**
+   * Crea prompt optimizado para generación desde descripción de texto (prompt enriquecido)
+   */
+  private createPromptBasedPrompt(context: GenerationContext): string {
+    const enrichedPrompt = context.prompt || 'Aplicación móvil estándar';
+    const domainAnalysis = this.analyzePromptDomain(enrichedPrompt);
+    const functionalityAnalysis = this.extractFunctionalities(enrichedPrompt);
+    const screenAnalysis = this.extractRequiredScreens(enrichedPrompt);
+
+    return `Genera una aplicación Flutter completa desde descripción enriquecida:
+
+DESCRIPCIÓN COMPLETA DE LA APLICACIÓN:
+${enrichedPrompt}
+
+ANÁLISIS AUTOMÁTICO DEL DOMINIO:
+${domainAnalysis}
+
+FUNCIONALIDADES IDENTIFICADAS:
+${functionalityAnalysis}
+
+PANTALLAS ESPECÍFICAS REQUERIDAS:
+${screenAnalysis}
+
+CONFIGURACIÓN ADICIONAL:
+${JSON.stringify(context.config || {}, null, 2)}
+
+REQUERIMIENTOS CRÍTICOS PARA PROMPTS ENRIQUECIDOS:
+1. **IMPLEMENTA TODAS LAS FUNCIONALIDADES** específicas mencionadas en la descripción
+2. **GENERA PANTALLAS ESPECÍFICAS** del dominio detectado (fitness, finanzas, delivery, etc.)
+3. **CREA AppDrawer AUTOMÁTICAMENTE** con navegación a TODAS las pantallas específicas
+4. **FORMULARIOS ESPECIALIZADOS** según el dominio (ej: formulario de rutinas para fitness)
+5. **COMPONENTES ESPECÍFICOS** del dominio (ej: gráficos de progreso, calendario de entrenamientos)
+6. **ESTADOS AVANZADOS** con carga, error y éxito en todas las operaciones
+7. **VALIDACIONES ESPECÍFICAS** del dominio en todos los formularios
+8. **NAVEGACIÓN COMPLETA** entre todas las funcionalidades implementadas
+9. **USAR ARQUITECTURA MODERNA**: Flutter + Riverpod + GoRouter + Material Design 3
+10. **ELIMINA flutter_secure_storage** del pubspec.yaml
+
+ARQUITECTURA TÉCNICA OBLIGATORIA:
+- Flutter con Riverpod para estado (flutter_riverpod: ^2.4.9)
+- GoRouter para navegación (go_router: ^13.0.0)
+- Material Design 3 con useMaterial3: true y colores apropiados para el dominio
+- Estructura modular: features/[domain_specific]/screens/
+- MÍNIMO 8-10 pantallas principales funcionales específicas del dominio
+- Navigation drawer con TODAS las funcionalidades específicas
+- Formularios reactivos con validación específica del dominio
+- Estados de carga, error y éxito en toda la app
+- Componentes reutilizables específicos del dominio
+
+IMPLEMENTACIÓN ESPECÍFICA REQUERIDA:
+✅ TODAS las funcionalidades base mencionadas (auth, perfil, configuraciones)
+✅ TODAS las funcionalidades específicas del dominio identificadas
+✅ Navigation drawer con acceso a TODAS las pantallas específicas
+✅ Formularios especializados con validación completa
+✅ Componentes específicos del dominio (gráficos, calendarios, listas, etc.)
+✅ Navegación fluida con GoRouter entre TODAS las pantallas
+✅ Imports correctos y código bien organizado
+✅ AppRouter().router (NO AppRouter.router)
+
+VALIDACIÓN FINAL:
+- ¿Implementé TODAS las funcionalidades específicas mencionadas?
+- ¿Creé TODAS las pantallas específicas del dominio?
+- ¿El navigation drawer incluye TODAS las funcionalidades?
+- ¿Los formularios son específicos del dominio detectado?
+- ¿Hay componentes especializados (gráficos, calendarios, etc.)?
+
+Genera MÍNIMO 8-10 archivos de código Flutter funcional implementando TODAS las funcionalidades específicas mencionadas en la descripción.`;
   }
 
   private analyzeXmlContent(xml: string, screenDetection?: any): string {
@@ -426,5 +504,97 @@ Genera MÍNIMO 6 archivos de código Flutter funcional con imports relativos cor
       return [...new Set(colorMatches)].slice(0, 3);
     }
     return [];
+  }
+
+  /**
+   * Analiza el dominio específico de la aplicación desde el prompt enriquecido
+   */
+  private analyzePromptDomain(prompt: string): string {
+    const lowerPrompt = prompt.toLowerCase();
+    const domains = [
+      { keywords: ['gimnasio', 'fitness', 'entrenamiento', 'ejercicio', 'rutina'], name: 'FITNESS & GYM', icon: '💪' },
+      { keywords: ['delivery', 'comida', 'restaurante', 'pedido', 'entrega'], name: 'FOOD DELIVERY', icon: '🍔' },
+      { keywords: ['contable', 'financiero', 'dinero', 'transaccion', 'factura'], name: 'FINANZAS', icon: '💰' },
+      { keywords: ['educativo', 'escolar', 'estudiante', 'curso', 'aprendizaje'], name: 'EDUCACIÓN', icon: '📚' },
+      { keywords: ['medico', 'salud', 'hospital', 'cita', 'paciente'], name: 'SALUD', icon: '🏥' },
+      { keywords: ['tienda', 'ecommerce', 'producto', 'venta', 'carrito'], name: 'E-COMMERCE', icon: '🛒' },
+      { keywords: ['social', 'chat', 'mensaje', 'amigo', 'red'], name: 'SOCIAL', icon: '👥' }
+    ];
+
+    for (const domain of domains) {
+      if (domain.keywords.some(keyword => lowerPrompt.includes(keyword))) {
+        return `${domain.icon} DOMINIO DETECTADO: ${domain.name}`;
+      }
+    }
+    return '🔧 DOMINIO: APLICACIÓN GENERAL';
+  }
+
+  /**
+   * Extrae funcionalidades específicas del prompt enriquecido
+   */
+  private extractFunctionalities(prompt: string): string {
+    const functionalities: string[] = [];
+    
+    // Buscar secciones de funcionalidades
+    const baseFunctionalitiesMatch = prompt.match(/FUNCIONALIDADES BASE[^:]*:([\s\S]*?)(?=FUNCIONALIDADES ESPECÍFICAS|PANTALLAS|$)/i);
+    const specificFunctionalitiesMatch = prompt.match(/FUNCIONALIDADES ESPECÍFICAS[^:]*:([\s\S]*?)(?=PANTALLAS|$)/i);
+    
+    if (baseFunctionalitiesMatch) {
+      const baseItems = baseFunctionalitiesMatch[1]
+        .split('-')
+        .map(item => item.trim())
+        .filter(item => item.length > 10)
+        .slice(0, 8);
+      
+      if (baseItems.length > 0) {
+        functionalities.push('📋 FUNCIONALIDADES BASE:');
+        baseItems.forEach(item => functionalities.push(`   • ${item}`));
+      }
+    }
+    
+    if (specificFunctionalitiesMatch) {
+      const specificItems = specificFunctionalitiesMatch[1]
+        .split('-')
+        .map(item => item.trim())
+        .filter(item => item.length > 10)
+        .slice(0, 8);
+      
+      if (specificItems.length > 0) {
+        functionalities.push('🎯 FUNCIONALIDADES ESPECÍFICAS:');
+        specificItems.forEach(item => functionalities.push(`   • ${item}`));
+      }
+    }
+    
+    return functionalities.length > 0 ? functionalities.join('\n') : 'Funcionalidades básicas de aplicación móvil';
+  }
+
+  /**
+   * Extrae pantallas requeridas del prompt enriquecido
+   */
+  private extractRequiredScreens(prompt: string): string {
+    const screens: string[] = [];
+    
+    // Buscar sección de pantallas
+    const screensMatch = prompt.match(/PANTALLAS[^:]*:([\s\S]*?)(?=IMPORTANTE|Este prompt|$)/i);
+    
+    if (screensMatch) {
+      const screenItems = screensMatch[1]
+        .split('-')
+        .map(item => item.trim())
+        .filter(item => item.length > 5 && item.toLowerCase().includes('pantalla'))
+        .slice(0, 12);
+      
+      if (screenItems.length > 0) {
+        screens.push('📱 PANTALLAS ESPECÍFICAS A IMPLEMENTAR:');
+        screenItems.forEach((item, index) => {
+          const cleanItem = item.replace(/^pantalla\s+de\s*/i, '').trim();
+          screens.push(`   ${index + 1}. ${cleanItem}`);
+        });
+        
+        screens.push('\n🗂️ NAVIGATION DRAWER DEBE INCLUIR TODAS ESTAS PANTALLAS');
+      }
+    }
+    
+    return screens.length > 0 ? screens.join('\n') : 'Pantallas básicas: Login, Dashboard, Perfil, Configuraciones';
   }
 } 

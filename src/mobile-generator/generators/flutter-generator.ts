@@ -76,8 +76,17 @@ export class FlutterGenerator extends BaseGenerator {
     const screenDetection = context.xml ? 
       this.screenDetector.detectScreens(context.xml) : null;
     
+    this.logger.debug(`🔍 Análisis de contexto: XML=${!!context.xml}, Prompt=${!!context.prompt}`);
+    if (context.prompt) {
+      this.logger.debug(`📝 Prompt length: ${context.prompt.length} chars`);
+      this.logger.debug(`📋 Primer fragmento del prompt: "${context.prompt.substring(0, 200)}..."`);
+    }
+    
     const systemPrompt = this.promptService.createSystemPrompt();
     const userPrompt = this.promptService.createUserPrompt(context, screenDetection);
+    
+    this.logger.debug(`📤 User prompt enviado a ChatGPT (${userPrompt.length} chars)`);
+    this.logger.debug(`🔍 Primer fragmento del user prompt: "${userPrompt.substring(0, 300)}..."`);
     
     return await this.chatgptService.generateFlutterCode(systemPrompt, userPrompt);
   }
