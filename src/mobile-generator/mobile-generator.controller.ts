@@ -56,7 +56,41 @@ export class MobileGeneratorController {
   }
 
   @Post(':id/generate')
-  @ApiOperation({ summary: 'Generar proyecto Flutter desde una aplicación móvil guardada' })
+  @ApiOperation({ summary: 'Generar proyecto (Flutter o Angular) desde una aplicación móvil guardada' })
+  @ApiResponse({ status: 200, description: 'Proyecto generado como ZIP' })
+  @ApiResponse({ status: 404, description: 'Aplicación móvil no encontrada' })
+  async generateProject(
+    @Param('id') id: string,
+    @GetUser() usuario: Usuario,
+    @Res() res: Response,
+  ) {
+    try {
+      const zipBuffer = await this.mobileGeneratorService.generateProject(id, usuario);
+      const mobileApp = await this.mobileGeneratorService.findOne(id);
+      
+      const filename = `${mobileApp.project_type}-project-${mobileApp.nombre}.zip`;
+
+      res.set({
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename=${filename}`,
+      });
+
+      res.status(HttpStatus.OK).send(zipBuffer);
+    } catch (error) {
+      console.error('Error generando proyecto:', error);
+      
+      // Enviar error 500 en lugar de 400 para errores internos
+      const statusCode = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      res.status(statusCode).json({
+        message: error.message || 'Error generando proyecto',
+        error: 'Internal Server Error',
+        statusCode: statusCode,
+      });
+    }
+  }
+
+  @Post(':id/generate-flutter')
+  @ApiOperation({ summary: 'Generar proyecto Flutter (método de compatibilidad)' })
   @ApiResponse({ status: 200, description: 'Proyecto Flutter generado como ZIP' })
   @ApiResponse({ status: 404, description: 'Aplicación móvil no encontrada' })
   async generateFlutterProject(
@@ -66,18 +100,25 @@ export class MobileGeneratorController {
   ) {
     try {
       const zipBuffer = await this.mobileGeneratorService.generateFlutterProject(id, usuario);
+      const mobileApp = await this.mobileGeneratorService.findOne(id);
+      
+      const filename = `flutter-project-${mobileApp.nombre}.zip`;
 
       res.set({
         'Content-Type': 'application/zip',
-        'Content-Disposition': 'attachment; filename=flutter-project.zip',
+        'Content-Disposition': `attachment; filename=${filename}`,
       });
 
       res.status(HttpStatus.OK).send(zipBuffer);
     } catch (error) {
       console.error('Error generando proyecto Flutter:', error);
-      res.status(HttpStatus.BAD_REQUEST).json({
-        message: 'Error generando proyecto Flutter',
-        error: error.message,
+      
+      // Enviar error 500 en lugar de 400 para errores internos
+      const statusCode = error.status || HttpStatus.INTERNAL_SERVER_ERROR;
+      res.status(statusCode).json({
+        message: error.message || 'Error generando proyecto Flutter',
+        error: 'Internal Server Error',
+        statusCode: statusCode,
       });
     }
   }
