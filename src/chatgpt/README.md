@@ -95,7 +95,7 @@ Cuerpo de la solicitud:
 {
   "xml": "<App><Interface name='Home'><Component type='header' /></Interface></App>",
   "specificInstructions": "Crear un proyecto con tema oscuro y rutas anidadas", // Opcional
-  "model": "gpt-4o" // Opcional
+  "model": "o3" // Opcional
 }
 ```
 
@@ -104,5 +104,5 @@ Respuesta: Un archivo ZIP descargable con el proyecto Angular completo.
 ## Modelos Recomendados
 
 - Para completar texto: `gpt-3.5-turbo-instruct`
-- Para chat: `gpt-3.5-turbo` o `gpt-4o` (recomendado)
-- Para generación de código: `gpt-4o` (mejor calidad y velocidad) 
+- Para chat: `gpt-3.5-turbo` o `o3` (recomendado)
+- Para generación de código: `o3` (mejor calidad y velocidad) 

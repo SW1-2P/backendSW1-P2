@@ -32,8 +32,8 @@ export class ChatCompletionDto {
   
   @ApiProperty({ 
     description: 'Modelo de OpenAI a usar', 
-    example: 'gpt-4o',
-    default: 'gpt-4o',
+    example: 'o3',
+    default: 'o3',
     required: false
   })
   @IsOptional()

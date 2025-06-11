@@ -7,7 +7,7 @@ Este módulo permite generar aplicaciones móviles Flutter completas a partir de
 ### ✅ Generación Dual
 - **XML**: Interpretación de diseños XML del frontend visual  
 - **Prompt**: Generación desde descripciones de texto directo
-- **IA**: Generación inteligente usando OpenAI GPT-4o para código sofisticado y rápido
+- **IA**: Generación inteligente usando OpenAI o3 para código sofisticado y rápido
 
 ### ✅ Arquitectura Flutter Moderna
 - Flutter 3.x con Dart 3.x

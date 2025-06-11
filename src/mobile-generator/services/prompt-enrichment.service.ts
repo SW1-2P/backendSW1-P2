@@ -8,37 +8,29 @@ export class PromptEnrichmentService {
   constructor(private readonly chatgptService: ChatgptService) {}
 
   /**
-   * Enriquece un prompt básico con funcionalidades estándar y específicas del dominio
+   * Enriquece un prompt básico SOLO con lo esencial - SIN agregar funcionalidades no solicitadas
    * @param originalPrompt Prompt original del usuario
-   * @returns Prompt enriquecido con funcionalidades detalladas
+   * @returns Prompt con clarificaciones técnicas mínimas
    */
   async enrichPrompt(originalPrompt: string): Promise<string> {
     try {
-      this.logger.debug(`🤖 Enriqueciendo prompt: "${originalPrompt.substring(0, 50)}..."`);
+      this.logger.debug(`🤖 Enriqueciendo prompt CONSERVADORAMENTE: "${originalPrompt.substring(0, 50)}..."`);
       this.logger.debug(`📏 Longitud del prompt original: ${originalPrompt.length} caracteres`);
       
-      // Si el prompt ya es muy detallado (>100 caracteres), no enriquecerlo demasiado
-      if (originalPrompt.length > 100) {
-        this.logger.debug('📝 Prompt ya es detallado, enriquecimiento mínimo');
-        const result = originalPrompt + this.getBaseFunctionalities();
-        this.logger.debug(`📏 Prompt con enriquecimiento mínimo: ${result.length} caracteres`);
-        return result;
-      }
+      // NUEVO ENFOQUE: Solo clarificar técnicamente, NO agregar funcionalidades extra
+      const technicalEnrichment = this.addTechnicalClarity(originalPrompt);
       
-      // Enriquecimiento completo para prompts básicos
-      const enrichedPrompt = await this.performFullEnrichment(originalPrompt);
-      this.logger.debug(`📏 Prompt totalmente enriquecido: ${enrichedPrompt.length} caracteres`);
-      this.logger.debug(`🔍 Primeros 200 caracteres del resultado: "${enrichedPrompt.substring(0, 200)}..."`);
+      this.logger.debug(`📏 Prompt con clarificaciones técnicas: ${technicalEnrichment.length} caracteres`);
+      this.logger.debug(`🔍 Resultado: "${technicalEnrichment.substring(0, 200)}..."`);
       
-      this.logger.debug(`✅ Prompt enriquecido completamente`);
-      return enrichedPrompt;
+      this.logger.debug(`✅ Prompt enriquecido conservadoramente`);
+      return technicalEnrichment;
       
     } catch (error) {
       this.logger.error(`❌ Error enriqueciendo prompt: ${error.message}`);
-      // Fallback: agregar solo funcionalidades base
-      const fallback = originalPrompt + this.getBaseFunctionalities();
-      this.logger.debug(`🔄 Usando fallback con ${fallback.length} caracteres`);
-      return fallback;
+      // Fallback: devolver prompt original sin cambios
+      this.logger.debug(`🔄 Usando prompt original sin modificaciones`);
+      return originalPrompt;
     }
   }
 
@@ -78,13 +70,30 @@ IMPORTANTE: Mantén el prompt original pero expándelo con funcionalidades espec
 
     const enrichedContent = await this.chatgptService.chat([
       { role: 'user', content: analysisPrompt }
-    ], 'gpt-4o', 0.7);
+    ], 'o3', 0.7);
 
     return enrichedContent;
   }
 
   /**
-   * Funcionalidades base que toda aplicación móvil debe tener
+   * NUEVA FUNCIÓN: Solo agrega clarificaciones técnicas básicas sin funcionalidades extra
+   */
+  private addTechnicalClarity(originalPrompt: string): string {
+    // Solo agregar clarificaciones técnicas mínimas para Flutter
+    const technicalNotes = `
+
+ESPECIFICACIONES TÉCNICAS PARA IMPLEMENTACIÓN:
+- Usar Flutter con GoRouter para navegación
+- Material Design 3 con useMaterial3: true
+- Implementar SOLO las pantallas/funcionalidades específicamente mencionadas
+- Formularios con validación básica donde sea necesario
+- Navegación apropiada entre las pantallas solicitadas`;
+
+    return originalPrompt + technicalNotes;
+  }
+
+  /**
+   * Funcionalidades base que toda aplicación móvil debe tener (LEGACY - YA NO SE USA)
    */
   private getBaseFunctionalities(): string {
     return `

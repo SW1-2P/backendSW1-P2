@@ -29,7 +29,7 @@ export class FlutterGenerator extends BaseGenerator {
       this.logger.debug('📁 Creando estructura del proyecto...');
       await this.createProjectStructure(tempDir, context);
       
-      this.logger.debug('🤖 Generando código con GPT-4o...');
+      this.logger.debug('🤖 Generando código con o3...');
       const generatedCode = await this.generateWithAI(context);
       
       this.logger.debug('🔧 Procesando código generado...');
@@ -70,7 +70,7 @@ export class FlutterGenerator extends BaseGenerator {
   }
 
   private async generateWithAI(context: GenerationContext): Promise<string> {
-    this.logger.debug('🤖 Generando código Flutter con GPT-4o...');
+    this.logger.debug('🤖 Generando código Flutter con o3...');
     
     // Detectar elementos del XML
     const screenDetection = context.xml ? 
@@ -138,6 +138,11 @@ export class FlutterGenerator extends BaseGenerator {
       .replace(/FlatButton/g, 'TextButton')
       .replace(/primaryColor/g, 'colorScheme.primary');
     
+    // 6. CORREGIR referencias circulares en AppTheme
+    if (filePath.includes('app_theme.dart')) {
+      fixedContent = this.fixCircularReferences(fixedContent);
+    }
+    
     return fixedContent;
   }
 
@@ -200,6 +205,41 @@ class MyApp extends ConsumerWidget`
     if ((content.includes('context.push') || content.includes('context.pop')) && 
         !content.includes("import 'package:go_router/go_router.dart'")) {
       content = "import 'package:go_router/go_router.dart';\n" + content;
+    }
+    
+    return content;
+  }
+
+  private fixCircularReferences(content: string): string {
+    // Detectar y corregir referencias circulares en AppTheme
+    
+    // Patrón problemático: _colorScheme.primary dentro de la definición de _colorScheme
+    const circularPattern = /static\s+final\s+ColorScheme\s+_colorScheme\s*=\s*ColorScheme\.fromSeed\s*\(\s*seedColor:\s*_colorScheme\.primary/g;
+    
+    if (circularPattern.test(content)) {
+      this.logger.warn('🔧 Corrigiendo referencia circular en AppTheme...');
+      
+      // Reemplazar con una estructura correcta
+      content = content.replace(
+        /static\s+final\s+ColorScheme\s+_colorScheme[\s\S]*?(?=static\s+ThemeData|$)/g,
+        `  // Colores base definidos como constantes
+  static const Color primaryColor = Color(0xFF2196F3);
+  static const Color secondaryColor = Color(0xFF03DAC6);
+  static const Color accentColor = Color(0xFFFF5722);
+  
+  `
+      );
+      
+      // Corregir referencias a _colorScheme.primary por primaryColor
+      content = content.replace(/_colorScheme\.primary/g, 'primaryColor');
+      content = content.replace(/_colorScheme\.secondary/g, 'secondaryColor');
+      content = content.replace(/_colorScheme\.accent/g, 'accentColor');
+      
+      // Asegurar que ColorScheme.fromSeed use la constante
+      content = content.replace(
+        /ColorScheme\.fromSeed\s*\(\s*seedColor:\s*[^,)]+/g,
+        'ColorScheme.fromSeed(\n        seedColor: primaryColor'
+      );
     }
     
     return content;
@@ -269,7 +309,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_riverpod: ^2.4.9
   go_router: ^13.0.0
   cupertino_icons: ^1.0.2
 
@@ -289,15 +328,10 @@ flutter:
 
   private async createMainFile(projectDir: string): Promise<void> {
     const mainContent = `import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 
 void main() {
-  runApp(
-    const ProviderScope(
-      child: MyApp(),
-    ),
-  );
+  runApp(const MyApp());
 }
 `;
     await fs.writeFile(path.join(projectDir, 'lib/main.dart'), mainContent);
@@ -429,7 +463,7 @@ Flutter application generated from Draw.io mockup.
 
 ## Architecture
 
-- **State Management**: Riverpod
+- **State Management**: Flutter built-in (StatefulWidget)
 - **Navigation**: GoRouter
 - **Design**: Material Design 3
 - **Structure**: Feature-based modules

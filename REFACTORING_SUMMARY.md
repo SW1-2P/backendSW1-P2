@@ -145,7 +145,7 @@ async generateAngularCode(systemPrompt: string, userPrompt: string): Promise<str
 - ✅ Removido método `generateText` no utilizado
 - ✅ Better error handling (400, 401, 429)
 - ✅ max_tokens: 4000 para código completo
-- ✅ Solo GPT-4o por defecto
+- ✅ Solo o3 por defecto
 
 ---
 
@@ -212,7 +212,7 @@ src/mobile-generator/
 │   │   └── scaffold.template.ts            ← ✅ Integrado en shared widgets
 │   └── shared-widgets.template.ts
 └── chatgpt/
-    ├── chatgpt.service.ts                  ← ✅ Optimizado solo GPT-4o
+    ├── chatgpt.service.ts                  ← ✅ Optimizado solo o3
     ├── chatgpt.controller.ts               ← ✅ Simplificado  
     └── dto/create-chatgpt.dto.ts           ← ✅ Limpiado
 ```

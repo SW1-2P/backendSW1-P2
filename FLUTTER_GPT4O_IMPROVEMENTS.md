@@ -1,19 +1,19 @@
-# 📱 Flutter Generator - Mejoras GPT-4o + Drawer Automático
+# 📱 Flutter Generator - Mejoras o3 + Drawer Automático
 
-## 🚀 Actualización GPT-4o
+## 🚀 Actualización o3
 
 ### Cambios Implementados
-- **✅ Todo el proyecto usa GPT-4o** en lugar de GPT-4
+- **✅ Todo el proyecto usa o3** en lugar de GPT-4
 - **🧠 Mejor calidad de código** generado
 - **⚡ Mayor velocidad** de generación
 - **🎯 Instrucciones más precisas** para componentes Flutter
 
 ### Archivos Actualizados
 ```
-src/mobile-generator/generators/flutter-generator.ts    ← GPT-4o
-src/mobile-generator/generators/angular-generator.ts    ← GPT-4o  
+src/mobile-generator/generators/flutter-generator.ts    ← o3
+src/mobile-generator/generators/angular-generator.ts    ← o3  
 src/chatgpt/README.md                                   ← Documentación actualizada
-src/mobile-generator/README.md                          ← Referencia a GPT-4o
+src/mobile-generator/README.md                          ← Referencia a o3
 ```
 
 ---
@@ -117,7 +117,7 @@ if (hasMultipleScreens) {
 
 ## 🚀 Mejoras en Prompts
 
-### Instrucciones Específicas para GPT-4o
+### Instrucciones Específicas para o3
 ```
 DRAWER OBLIGATORIO PARA MÚLTIPLES PANTALLAS:
 - NavigationDrawer con Material Design 3
@@ -136,7 +136,7 @@ DRAWER OBLIGATORIO PARA MÚLTIPLES PANTALLAS:
 
 ## ✅ Beneficios
 
-### 🧠 GPT-4o
+### 🧠 o3
 - **Mejor comprensión** de instrucciones complejas
 - **Código más limpio** y estructurado
 - **Menos errores** en generación

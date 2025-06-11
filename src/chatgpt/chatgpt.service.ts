@@ -19,17 +19,17 @@ export class ChatgptService {
       apiKey,
     });
     
-    this.logger.log('Servicio de ChatGPT inicializado con GPT-4o');
+    this.logger.log('Servicio de ChatGPT inicializado con o3');
   }
 
   /**
-   * Genera respuestas usando GPT-4o para generación de código Flutter/Angular
+   * Genera respuestas usando o3 para generación de código Flutter/Angular
    * @param messages Array de mensajes con role y content
-   * @param model Modelo a usar (por defecto gpt-4o para mejor calidad)
+   * @param model Modelo a usar (por defecto o3 para mejor calidad)
    * @param temperature Temperatura para creatividad (por defecto 0.7)
    * @returns Respuesta del modelo
    */
-  async chat(messages: Array<{ role: string; content: string }>, model = 'gpt-4o', temperature = 0.7): Promise<string> {
+  async chat(messages: Array<{ role: string; content: string }>, model = 'o3', temperature = 1): Promise<string> {
     try {
       this.logger.debug(`🤖 Generando código con ${model} - ${messages.length} mensajes`);
       
@@ -39,12 +39,23 @@ export class ChatgptService {
         content: msg.content
       }));
       
-      const response = await this.openai.chat.completions.create({
+      // Configurar parámetros según el modelo
+      const requestParams: any = {
         model,
         messages: validatedMessages,
-        temperature,
-        max_tokens: 4000, // Suficiente para generar código completo
-      });
+      };
+
+      // o3 tiene restricciones específicas
+      if (model.startsWith('o3')) {
+        requestParams.max_completion_tokens = 4000;
+        // o3 solo acepta temperature = 1 (valor por defecto)
+        requestParams.temperature = 1;
+      } else {
+        requestParams.max_tokens = 4000;
+        requestParams.temperature = temperature;
+      }
+
+      const response = await this.openai.chat.completions.create(requestParams);
 
       this.logger.debug(`✅ Respuesta de ${model} recibida correctamente`);
       
@@ -78,7 +89,8 @@ export class ChatgptService {
       { role: 'user', content: userPrompt }
     ];
     
-    return this.chat(messages, 'gpt-4o', 0.7);
+    // o3 usa temperature = 1 automáticamente
+    return this.chat(messages, 'o3', 1);
   }
 
   /**
@@ -91,6 +103,7 @@ export class ChatgptService {
       { role: 'user', content: userPrompt }
     ];
     
-    return this.chat(messages, 'gpt-4o', 0.7);
+    // o3 usa temperature = 1 automáticamente
+    return this.chat(messages, 'o3', 1);
   }
 }

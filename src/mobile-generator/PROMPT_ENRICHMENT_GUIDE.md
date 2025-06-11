@@ -10,7 +10,7 @@ El sistema ahora incluye un **endpoint especializado** para crear aplicaciones m
 - Detecta el dominio de la aplicación (finanzas, educación, salud, etc.)
 - Agrega funcionalidades base obligatorias
 - Sugiere funcionalidades específicas del dominio
-- Usa GPT-4o para análisis inteligente
+- Usa o3 para análisis inteligente
 
 ### ✅ **Funcionalidades Base Automáticas**
 Toda app generada incluye automáticamente:
@@ -47,7 +47,7 @@ curl -X POST http://localhost:3000/mobile-generator/from-prompt \
 1. Detecta dominio: "finanzas/contable"
 2. Agrega funcionalidades base
 3. Enriquece con: formularios de transacciones, reportes, categorización, etc.
-4. Genera prompt completo para GPT-4o
+4. Genera prompt completo para o3
 
 ### **Ejemplo 2: Prompt Detallado**
 ```bash
@@ -103,7 +103,7 @@ curl -X POST http://localhost:3000/mobile-generator/from-prompt \
 graph TD
     A[Usuario envía prompt] --> B{¿Prompt > 100 chars?}
     B -->|Sí| C[Enriquecimiento mínimo]
-    B -->|No| D[Análisis con GPT-4o]
+    B -->|No| D[Análisis con o3]
     D --> E[Detectar dominio]
     E --> F[Sugerir funcionalidades]
     F --> G[Crear prompt enriquecido]
