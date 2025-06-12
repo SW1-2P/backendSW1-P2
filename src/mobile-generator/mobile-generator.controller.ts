@@ -8,13 +8,18 @@ import { Usuario } from '../usuarios/entities/usuario.entity';
 import { CreateMobileAppDto } from './dto/create-mobile-app.dto';
 import { UpdateMobileAppDto } from './dto/update-mobile-app.dto';
 import { CreateFromPromptDto } from './dto/create-from-prompt.dto';
+import { AnalyzeImageDto } from './dto/analyze-image.dto';
+import { ImageAnalysisService } from './services/image-analysis.service';
 
 @ApiTags('Mobile Generator')
 @Controller('mobile-generator')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class MobileGeneratorController {
-  constructor(private readonly mobileGeneratorService: MobileGeneratorService) {}
+  constructor(
+    private readonly mobileGeneratorService: MobileGeneratorService,
+    private readonly imageAnalysisService: ImageAnalysisService
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Crear y almacenar una nueva aplicación móvil desde XML o mockup' })
@@ -149,5 +154,41 @@ export class MobileGeneratorController {
         statusCode: statusCode,
       });
     }
+  }
+
+  @Post('analyze-image')
+  @ApiOperation({ summary: 'Analizar imagen para generar descripción de aplicación móvil' })
+  @ApiResponse({ status: 200, description: 'Imagen analizada correctamente' })
+  @ApiResponse({ status: 400, description: 'Imagen no válida o error en el análisis' })
+  @ApiBody({
+    type: AnalyzeImageDto,
+    description: 'Imagen en base64 para analizar',
+    examples: {
+      ejemplo: {
+        summary: 'Análisis de imagen',
+        value: {
+          image: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...',
+          projectType: 'flutter'
+        }
+      }
+    }
+  })
+  async analyzeImage(@Body() analyzeImageDto: AnalyzeImageDto) {
+    // Validar imagen
+    const validation = this.imageAnalysisService.validateImageData(analyzeImageDto.image);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.error
+      };
+    }
+
+    // Analizar imagen
+    const result = await this.imageAnalysisService.analyzeImageForProject(
+      analyzeImageDto.image,
+      analyzeImageDto.projectType
+    );
+
+    return result;
   }
 } 

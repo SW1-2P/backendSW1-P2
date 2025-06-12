@@ -138,9 +138,47 @@ export class FlutterGenerator extends BaseGenerator {
       .replace(/FlatButton/g, 'TextButton')
       .replace(/primaryColor/g, 'colorScheme.primary');
     
-    // 6. CORREGIR referencias circulares en AppTheme
-    if (filePath.includes('app_theme.dart')) {
-      fixedContent = this.fixCircularReferences(fixedContent);
+    // 6. CORREGIR referencias circulares y errores de sintaxis (aplicar a TODOS los archivos)
+    fixedContent = this.fixCircularReferences(fixedContent);
+    
+    // 7. CORRECCIONES ADICIONALES ESPECÍFICAS PARA PANTALLAS
+    if (filePath.includes('_screen.dart')) {
+      // Corregir referencias a AppTheme en pantallas
+      fixedContent = fixedContent.replace(/AppTheme\.primary/g, 'AppTheme.colorSchemePrimary');
+      fixedContent = fixedContent.replace(/AppTheme\.secondary/g, 'AppTheme.secondaryBlue');
+      
+      // Corregir tipos de función incorrectos
+      fixedContent = fixedContent.replace(
+        /color:\s*AppTheme\.([a-zA-Z]+),/g,
+        'color: AppTheme.$1,'
+      );
+      
+      // Asegurar que se declare colorScheme al inicio del build method
+      if (!fixedContent.includes('final colorScheme = Theme.of(context).colorScheme;')) {
+        fixedContent = fixedContent.replace(
+          /@override\s+Widget\s+build\(BuildContext\s+context\)\s*\{/,
+          `@override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;`
+        );
+      }
+      
+      // Corregir referencias directas a colores sin contexto
+      fixedContent = fixedContent.replace(
+        /color:\s*Colors\.([a-zA-Z]+)\.withOpacity/g,
+        'color: colorScheme.primary.withOpacity'
+      );
+    }
+    
+    // 8. CORRECCIONES GLOBALES ADICIONALES
+    
+    // Corregir imports faltantes de AppTheme
+    if (fixedContent.includes('AppTheme.') && !fixedContent.includes("import '../../../core/themes/app_theme.dart'")) {
+      fixedContent = fixedContent.replace(
+        /import 'package:flutter\/material\.dart';/,
+        `import 'package:flutter/material.dart';
+import '../../../core/themes/app_theme.dart';`
+      );
     }
     
     return fixedContent;
@@ -219,28 +257,97 @@ class MyApp extends ConsumerWidget`
     if (circularPattern.test(content)) {
       this.logger.warn('🔧 Corrigiendo referencia circular en AppTheme...');
       
-      // Reemplazar con una estructura correcta
+      // Reemplazar con una estructura correcta usando los mismos colores del tema
       content = content.replace(
         /static\s+final\s+ColorScheme\s+_colorScheme[\s\S]*?(?=static\s+ThemeData|$)/g,
-        `  // Colores base definidos como constantes
-  static const Color primaryColor = Color(0xFF2196F3);
-  static const Color secondaryColor = Color(0xFF03DAC6);
-  static const Color accentColor = Color(0xFFFF5722);
+        `  // ✅ Definir colores como constantes primero
+  static const Color colorSchemePrimary = Color(0xFF4CAF50); // Verde
+  static const Color secondaryBlue = Color(0xFF2196F3);
+  static const Color secondaryOrange = Color(0xFFFF9800);
+  static const Color secondaryPurple = Color(0xFF9C27B0);
   
   `
       );
       
       // Corregir referencias a _colorScheme.primary por primaryColor
-      content = content.replace(/_colorScheme\.primary/g, 'primaryColor');
-      content = content.replace(/_colorScheme\.secondary/g, 'secondaryColor');
-      content = content.replace(/_colorScheme\.accent/g, 'accentColor');
+      content = content.replace(/_colorScheme\.primary/g, 'colorSchemePrimary');
+      content = content.replace(/_colorScheme\.secondary/g, 'secondaryBlue');
+      content = content.replace(/_colorScheme\.accent/g, 'colorSchemePrimary');
       
       // Asegurar que ColorScheme.fromSeed use la constante
       content = content.replace(
         /ColorScheme\.fromSeed\s*\(\s*seedColor:\s*[^,)]+/g,
-        'ColorScheme.fromSeed(\n        seedColor: primaryColor'
+        'ColorScheme.fromSeed(\n        seedColor: colorSchemePrimary'
       );
     }
+    
+    // NUEVAS CORRECCIONES PARA ERRORES DE SINTAXIS
+    
+    // 1. Corregir nombres de variables inválidos como "colorScheme.primary"
+    content = content.replace(
+      /static\s+const\s+Color\s+colorScheme\.primary/g,
+      'static const Color colorSchemePrimary'
+    );
+    
+    content = content.replace(
+      /static\s+const\s+Color\s+colorScheme\.secondary/g,
+      'static const Color colorSchemeSecondary'
+    );
+    
+    // 2. Corregir referencias a colorScheme.primary en el código
+    content = content.replace(/colorScheme\.primary/g, 'colorSchemePrimary');
+    content = content.replace(/colorScheme\.secondary/g, 'colorSchemeSecondary');
+    
+    // 3. Corregir referencias a AppTheme.primary (debe ser AppTheme.colorSchemePrimary)
+    content = content.replace(/AppTheme\.primary/g, 'AppTheme.colorSchemePrimary');
+    content = content.replace(/AppTheme\.secondary/g, 'AppTheme.secondaryBlue');
+    
+    // 4. Corregir definiciones de colores malformadas
+    content = content.replace(
+      /static\s+const\s+Color\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*Color\s*\(\s*([^)]+)\s*\)\s*;?\s*\/\/[^\n]*/g,
+      'static const Color $1 = Color($2);'
+    );
+    
+    // 5. CORRECCIONES ESPECÍFICAS PARA REFERENCIAS DE COLORES EN PANTALLAS
+    
+    // Corregir uso directo de colorSchemePrimary sin contexto
+    content = content.replace(
+      /backgroundColor:\s*colorSchemePrimary/g,
+      'backgroundColor: Theme.of(context).colorScheme.primary'
+    );
+    
+    content = content.replace(
+      /color:\s*colorSchemePrimary(?!,)/g,
+      'color: Theme.of(context).colorScheme.primary'
+    );
+    
+    content = content.replace(
+      /color:\s*colorSchemePrimary,/g,
+      'color: Theme.of(context).colorScheme.primary,'
+    );
+    
+    // Corregir referencias incorrectas a Theme.of(context).colorSchemePrimary
+    content = content.replace(
+      /Theme\.of\(context\)\.colorSchemePrimary/g,
+      'Theme.of(context).colorScheme.primary'
+    );
+    
+    // Corregir otras referencias de colores sin contexto
+    content = content.replace(
+      /color:\s*secondaryBlue/g,
+      'color: Theme.of(context).colorScheme.secondary'
+    );
+    
+    content = content.replace(
+      /backgroundColor:\s*secondaryBlue/g,
+      'backgroundColor: Theme.of(context).colorScheme.secondary'
+    );
+    
+    // 6. Asegurar que se use colorScheme correctamente
+    content = content.replace(
+      /final\s+colorScheme\s*=\s*Theme\.of\(context\)\.colorScheme;/g,
+      'final colorScheme = Theme.of(context).colorScheme;'
+    );
     
     return content;
   }
@@ -360,48 +467,33 @@ void main() {
     const themeContent = `import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Colores extraídos del mockup
-  static const Color primaryColor = Color(${colors.primary});
-  static const Color secondaryColor = Color(${colors.secondary});
-  static const Color accentColor = Color(${colors.accent});
-  
+  // ✅ Definir colores como constantes primero
+  static const Color colorSchemePrimary = Color(0xFF4CAF50); // Verde
+  static const Color secondaryBlue = Color(0xFF2196F3);
+  static const Color secondaryOrange = Color(0xFFFF9800);
+  static const Color secondaryPurple = Color(0xFF9C27B0);
+
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primaryColor,
+        seedColor: colorSchemePrimary,
         brightness: Brightness.light,
       ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent,
-        foregroundColor: primaryColor,
+      scaffoldBackgroundColor: Colors.white,
+      appBarTheme: const AppBarTheme(
         elevation: 0,
-        scrolledUnderElevation: 0,
         centerTitle: true,
       ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 0,
-        ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: colorSchemePrimary,
+        foregroundColor: Colors.white,
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryColor, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      ),
-      cardTheme: CardTheme(
-        elevation: 0,
+      cardTheme: const CardTheme(
+        elevation: 2,
+        margin: EdgeInsets.all(8),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
       ),
     );

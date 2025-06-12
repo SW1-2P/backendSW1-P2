@@ -11,6 +11,7 @@ import { MockupIntegrationService } from './services/mockup-integration.service'
 import { FlutterPromptService } from './services/flutter-prompt.service';
 import { FlutterScreenDetectorService } from './services/flutter-screen-detector.service';
 import { PromptEnrichmentService } from './services/prompt-enrichment.service';
+import { ImageAnalysisService } from './services/image-analysis.service';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PromptEnrichmentService } from './services/prompt-enrichment.service';
     FlutterPromptService,
     FlutterScreenDetectorService,
     PromptEnrichmentService,
+    ImageAnalysisService,
   ],
   exports: [
     MobileGeneratorService,

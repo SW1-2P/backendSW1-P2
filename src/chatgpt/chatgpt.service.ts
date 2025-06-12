@@ -106,4 +106,51 @@ export class ChatgptService {
     // o3 usa temperature = 1 automáticamente
     return this.chat(messages, 'o3', 1);
   }
+
+  /**
+   * Genera respuestas usando GPT-4 Vision para análisis de imágenes
+   * @param messages Array de mensajes que pueden incluir imágenes
+   * @param options Opciones adicionales como maxTokens y temperature
+   * @returns Respuesta del modelo
+   */
+  async generateResponseWithVision(
+    messages: Array<{ 
+      role: 'system' | 'user' | 'assistant'; 
+      content: string | Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string; detail?: string } }> 
+    }>,
+    options: { maxTokens?: number; temperature?: number } = {}
+  ): Promise<string> {
+    try {
+      this.logger.debug(`🔍 Analizando imagen con GPT-4 Vision - ${messages.length} mensajes`);
+      
+      const { maxTokens = 2000, temperature = 0.7 } = options;
+      
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o', // gpt-4o tiene capacidades de visión
+        messages: messages as any,
+        max_tokens: maxTokens,
+        temperature: temperature,
+      });
+
+      this.logger.debug(`✅ Respuesta de GPT-4 Vision recibida correctamente`);
+      
+      return response.choices[0].message.content || '';
+    } catch (error) {
+      this.logger.error(`❌ Error al llamar a GPT-4 Vision: ${error.message}`, error.stack);
+      
+      if (error.status === 429) {
+        throw new InternalServerErrorException('Límite de solicitudes a OpenAI excedido. Intente de nuevo más tarde.');
+      }
+      
+      if (error.status === 400) {
+        throw new InternalServerErrorException('Error en el formato de la solicitud a OpenAI Vision. Verifique la imagen y parámetros.');
+      }
+      
+      if (error.status === 401) {
+        throw new InternalServerErrorException('API key de OpenAI inválida o expirada.');
+      }
+      
+      throw new InternalServerErrorException(`Error al analizar imagen con GPT-4 Vision: ${error.message}`);
+    }
+  }
 }
