@@ -1,29 +1,28 @@
-version: '3.8'
-
+# Backend Docker Compose - Independiente
 services:
   postgres:
     image: postgres:15
-    container_name: postgres-db
+    container_name: backend-postgres-db
     restart: always
     environment:
       POSTGRES_DB: backend_sw
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Puerto externo diferente para evitar conflictos
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - backend_postgres_data:/var/lib/postgresql/data
     networks:
-      - app-network
+      - backend-network
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: nestjs-app
+    container_name: backend-nestjs-app
     restart: always
     ports:
-      - "${PORT:-3000}:3000"
+      - "3000:3000"
     environment:
       - NODE_ENV=development
       - PORT=3000
@@ -41,11 +40,12 @@ services:
     depends_on:
       - postgres
     networks:
-      - app-network
+      - backend-network
 
 volumes:
-  postgres_data:
+  backend_postgres_data:
 
 networks:
-  app-network:
-    driver: bridge 
+  backend-network:
+    driver: bridge
+    name: backend-network 

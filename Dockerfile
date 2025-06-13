@@ -21,6 +21,9 @@ COPY package*.json ./
 # Copiar el archivo .env si existe
 COPY .env* ./
 
+# Crear directorio temporal y dar permisos al usuario node
+RUN mkdir -p temp && chown -R node:node /app
+
 USER node
 
 EXPOSE 3000

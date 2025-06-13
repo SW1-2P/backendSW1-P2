@@ -20,7 +20,8 @@ export class FlutterGenerator extends BaseGenerator {
   }
 
   async generateProject(context: GenerationContext): Promise<Buffer> {
-    const tempDir = path.join(process.cwd(), 'temp', `flutter-project-${Date.now()}`);
+    // Usar el directorio temporal del sistema operativo que tiene permisos garantizados
+    const tempDir = path.join('/tmp', `flutter-project-${Date.now()}`);
     
     try {
       this.logger.debug(`🏗️ Creando directorio temporal: ${tempDir}`);

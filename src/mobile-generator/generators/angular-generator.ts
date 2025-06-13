@@ -12,7 +12,8 @@ export class AngularGenerator extends BaseGenerator {
   }
 
   async generateProject(context: GenerationContext): Promise<Buffer> {
-    const tempDir = path.join(process.cwd(), 'temp', `angular-project-${Date.now()}`);
+    // Usar el directorio temporal del sistema operativo que tiene permisos garantizados
+    const tempDir = path.join('/tmp', `angular-project-${Date.now()}`);
     
     try {
       await fs.ensureDir(tempDir);
