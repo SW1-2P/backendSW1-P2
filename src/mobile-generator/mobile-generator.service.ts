@@ -1,16 +1,16 @@
 import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as AdmZip from 'adm-zip';
-import * as fs from 'fs-extra';
-import * as path from 'path';
-import * as xml2js from 'xml2js';
-import { ChatgptService } from '../chatgpt/chatgpt.service';
 
 import { Usuario } from '../usuarios/entities/usuario.entity';
-import { MobileApp } from './entities/mobile-app.entity';
+import { MobileApp, ProjectType } from './entities/mobile-app.entity';
 import { CreateMobileAppDto } from './dto/create-mobile-app.dto';
 import { UpdateMobileAppDto } from './dto/update-mobile-app.dto';
+import { CreateFromPromptDto } from './dto/create-from-prompt.dto';
+import { GeneratorFactory } from './generators/generator.factory';
+import { MockupIntegrationService } from './services/mockup-integration.service';
+import { PromptEnrichmentService } from './services/prompt-enrichment.service';
+import { GenerationContext } from './interfaces/generator.interface';
 
 @Injectable()
 export class MobileGeneratorService {
@@ -19,25 +19,77 @@ export class MobileGeneratorService {
   constructor(
     @InjectRepository(MobileApp)
     private mobileAppRepository: Repository<MobileApp>,
-    private readonly chatgptService: ChatgptService,
+    private readonly generatorFactory: GeneratorFactory,
+    private readonly mockupService: MockupIntegrationService,
+    private readonly promptEnrichmentService: PromptEnrichmentService,
   ) {}
 
-  // CRUD Operations (igual que diagramas y mockups)
+  // CRUD Operations
   async create(createMobileAppDto: CreateMobileAppDto): Promise<MobileApp> {
-    // Validar que al menos uno de xml o prompt esté presente
-    if (!createMobileAppDto.xml && !createMobileAppDto.prompt) {
-      throw new Error('Debe proporcionar XML o prompt para crear la aplicación');
+    // Validar que al menos uno de xml, prompt o mockup_id esté presente
+    if (!createMobileAppDto.xml && !createMobileAppDto.prompt && !createMobileAppDto.mockup_id) {
+      throw new Error('Debe proporcionar XML, prompt o mockup_id para crear la aplicación');
+    }
+
+    // Validar tipo de proyecto
+    const projectType = createMobileAppDto.project_type || ProjectType.FLUTTER;
+    if (!this.generatorFactory.isSupported(projectType)) {
+      throw new Error(`Tipo de proyecto no soportado: ${projectType}`);
     }
 
     // Generar nombre automáticamente si no se proporciona
-    const nombre = createMobileAppDto.nombre || this.generateAppName(createMobileAppDto.xml || createMobileAppDto.prompt || '');
+    const nombre = createMobileAppDto.nombre || this.generateAppName(
+      createMobileAppDto.xml || createMobileAppDto.prompt || 'mobile-app'
+    );
 
     const mobileApp = this.mobileAppRepository.create({
       ...createMobileAppDto,
       nombre,
+      project_type: projectType,
     });
     
     return await this.mobileAppRepository.save(mobileApp);
+  }
+
+  async createFromPrompt(createFromPromptDto: CreateFromPromptDto, userId: string): Promise<MobileApp> {
+    this.logger.debug(`🤖 Creando app desde prompt para usuario: ${userId}`);
+    
+    try {
+      // 1. Validar tipo de proyecto
+      const projectType = createFromPromptDto.project_type || ProjectType.FLUTTER;
+      if (!this.generatorFactory.isSupported(projectType)) {
+        throw new Error(`Tipo de proyecto no soportado: ${projectType}`);
+      }
+
+      // 2. Enriquecer prompt automáticamente con IA
+      this.logger.debug('🔍 Enriqueciendo prompt con funcionalidades específicas...');
+      this.logger.debug(`📥 Prompt original (${createFromPromptDto.prompt.length} chars): "${createFromPromptDto.prompt.substring(0, 100)}..."`);
+      
+      const enrichedPrompt = await this.promptEnrichmentService.enrichPrompt(createFromPromptDto.prompt);
+      
+      this.logger.debug(`📤 Prompt enriquecido (${enrichedPrompt.length} chars): "${enrichedPrompt.substring(0, 200)}..."`);
+      
+      // 3. Generar nombre automáticamente si no se proporciona
+      const nombre = createFromPromptDto.nombre || this.generateAppName(createFromPromptDto.prompt);
+      
+      // 4. Crear aplicación con prompt enriquecido
+      const mobileApp = this.mobileAppRepository.create({
+        nombre,
+        prompt: enrichedPrompt, // ⭐ Prompt enriquecido automáticamente
+        project_type: projectType,
+        config: createFromPromptDto.config,
+        user_id: userId,
+      });
+      
+      const savedApp = await this.mobileAppRepository.save(mobileApp);
+      
+      this.logger.debug(`✅ App creada desde prompt enriquecido: ${savedApp.id}`);
+      return savedApp;
+      
+    } catch (error) {
+      this.logger.error(`❌ Error creando app desde prompt: ${error.message}`);
+      throw new InternalServerErrorException(`Error creando aplicación desde prompt: ${error.message}`);
+    }
   }
 
   async findAllByUserId(userId: string): Promise<MobileApp[]> {
@@ -66,8 +118,8 @@ export class MobileGeneratorService {
     await this.mobileAppRepository.remove(mobileApp);
   }
 
-  // Método principal para generar proyecto Flutter
-  async generateFlutterProject(id: string, usuario?: Usuario): Promise<Buffer> {
+  // Método principal para generar proyecto (Flutter o Angular)
+  async generateProject(id: string, usuario?: Usuario): Promise<Buffer> {
     const mobileApp = await this.findOne(id);
     
     // Verificar que el usuario tenga permisos
@@ -75,365 +127,85 @@ export class MobileGeneratorService {
       throw new Error('No tiene permisos para generar esta aplicación');
     }
 
-    const tempDir = path.join(process.cwd(), 'temp', `flutter-project-${Date.now()}`);
-    
     try {
-      await fs.ensureDir(tempDir);
+      // Crear contexto de generación
+      const context = await this.createGenerationContext(mobileApp, usuario);
       
-      // Generar usando XML o prompt
-      if (mobileApp.xml) {
-        await this.generateFromXml(tempDir, mobileApp.xml, usuario);
-      } else if (mobileApp.prompt) {
-        await this.generateFromPrompt(tempDir, mobileApp.prompt, usuario);
-      }
-
-      // Crear archivo ZIP
-      const zip = new AdmZip();
-      await this.addDirectoryToZip(zip, tempDir, '');
+      // Obtener el generador apropiado
+      const generator = this.generatorFactory.createGenerator(mobileApp.project_type);
       
-      return zip.toBuffer();
+      // Generar proyecto
+      return await generator.generateProject(context);
+      
     } catch (error) {
-      this.logger.error('Error generando proyecto Flutter:', error);
-      throw new InternalServerErrorException('Error generando proyecto Flutter');
-    } finally {
-      // Limpiar archivos temporales - con manejo especial para Windows
-      if (await fs.pathExists(tempDir)) {
-        try {
-          // Pequeño delay para asegurar que todos los handles estén cerrados
-          await new Promise(resolve => setTimeout(resolve, 100));
-          await fs.remove(tempDir);
-        } catch (cleanupError) {
-          this.logger.warn(`No se pudo limpiar directorio temporal ${tempDir}:`, cleanupError);
-          // En Windows, a veces necesitamos más tiempo
-          setTimeout(async () => {
-            try {
-              await fs.remove(tempDir);
-            } catch (error) {
-              this.logger.error(`Error final limpiando directorio temporal:`, error);
-            }
-          }, 1000);
-        }
-      }
+      this.logger.error(`Error generando proyecto ${mobileApp.project_type}:`, error);
+      throw new InternalServerErrorException(`Error generando proyecto ${mobileApp.project_type}`);
     }
   }
 
-  private async generateFromXml(projectDir: string, xml: string, usuario?: Usuario): Promise<void> {
-    try {
-      this.logger.debug('Generando aplicación desde XML');
-      
-      // Crear estructura básica del proyecto Flutter
-      await this.createFlutterProjectStructure(projectDir);
-      
-      // Generar código usando IA
-      const systemPrompt = `Eres un experto desarrollador Flutter.
-Recibirás un XML que describe una aplicación móvil y debes generar código Flutter completo.
+  // Método para crear contexto de generación
+  private async createGenerationContext(mobileApp: MobileApp, usuario?: Usuario): Promise<GenerationContext> {
+    const context: GenerationContext = {
+      projectType: mobileApp.project_type,
+      xml: mobileApp.xml,
+      prompt: mobileApp.prompt,
+      config: mobileApp.config,
+      usuario,
+    };
 
-REQUISITOS:
-1. Generar AL MENOS 4 pantallas diferentes
-2. Usar Material Design 3 y buenas prácticas de Flutter
-3. Incluir navegación entre pantallas
-4. Agregar elementos interactivos realistas
-5. Usar datos de ejemplo
+    // Si tiene mockup_id, obtener datos del mockup
+    if (mobileApp.mockup_id) {
+      try {
+        const mockupData = await this.mockupService.getMockupData(mobileApp.mockup_id, usuario?.id);
+        
+        if (this.mockupService.validateMockupForGeneration(mockupData)) {
+          context.mockupData = await this.mockupService.processMockupForGeneration(mockupData);
+          
+          // Si no hay XML, generar uno del mockup
+          if (!context.xml) {
+            context.xml = this.mockupService.generateXmlFromMockup(mockupData);
+          }
+        } else {
+          this.logger.warn(`Mockup ${mobileApp.mockup_id} no es válido para generación`);
+        }
+      } catch (error) {
+        this.logger.error(`Error obteniendo mockup ${mobileApp.mockup_id}:`, error);
+        // Continuar sin mockup
+      }
+    }
 
-Genera archivos Flutter completos con [FILE: ruta] como marcadores.`;
-
-      const userPrompt = `Genera una aplicación Flutter completa basada en este XML:
-
-${xml}
-
-Crea una aplicación funcional con navegación, formularios y elementos interactivos.`;
-
-             const messages = [
-         { role: 'system', content: systemPrompt },
-         { role: 'user', content: userPrompt }
-       ];
-       
-       const flutterCode = await this.chatgptService.chat(messages, 'gpt-4', 0.7);
-       await this.processGeneratedCode(projectDir, flutterCode);
-       
-     } catch (error) {
-       this.logger.error('Error generando desde XML:', error);
-       throw error;
-     }
+    return context;
   }
 
-  private async generateFromPrompt(projectDir: string, prompt: string, usuario?: Usuario): Promise<void> {
+  private generateAppName(input: string): string {
     try {
-      this.logger.debug('Generando aplicación desde prompt directo');
-      
-      await this.createFlutterProjectStructure(projectDir);
-      
-      const systemPrompt = `Eres un experto desarrollador Flutter.
-Recibirás una descripción de una aplicación que el usuario quiere crear.
-
-REQUISITOS CRÍTICOS:
-1. Generar AL MENOS 4 pantallas diferentes
-2. Si el prompt es general, crear una app completa con:
-   - Pantalla de login
-   - Dashboard/Home
-   - Al menos 2 pantallas específicas de funcionalidad
-   - Perfil o configuración
-3. Usar Material Design 3 y buenas prácticas Flutter
-4. Incluir navegación apropiada entre pantallas
-5. Cada pantalla debe ser completamente funcional con datos de ejemplo
-
-Genera archivos Flutter completos con [FILE: ruta] como marcadores.`;
-
-      const userPrompt = `Crea una aplicación Flutter completa basada en esta descripción:
-
-"${prompt}"
-
-IMPORTANTE: 
-- Si es una solicitud general, crea una app completa con al menos 4 pantallas
-- Si es específica, implementa exactamente lo solicitado más pantallas de apoyo necesarias
-- Haz la app completamente funcional con datos de ejemplo y navegación apropiada
-
-Genera TODOS los archivos Flutter necesarios para una aplicación funcional.`;
-
-             const messages = [
-         { role: 'system', content: systemPrompt },
-         { role: 'user', content: userPrompt }
-       ];
-       
-       const flutterCode = await this.chatgptService.chat(messages, 'gpt-4', 0.7);
-       await this.processGeneratedCode(projectDir, flutterCode);
-       
-     } catch (error) {
-       this.logger.error('Error generando desde prompt:', error);
-       throw error;
-     }
-  }
-
-  private generateAppName(xml: string): string {
-    // Extraer nombre del XML si existe, sino generar uno
-    try {
-      if (xml.includes('name=')) {
-        const match = xml.match(/name="([^"]+)"/);
+      if (input.includes('name=')) {
+        const match = input.match(/name="([^"]+)"/);
         if (match) {
           return match[1].replace(/\s+/g, '_').toLowerCase();
         }
       }
-      return `flutter_app_${Date.now()}`;
+      return `mobile_app_${Date.now()}`;
     } catch {
-      return `flutter_app_${Date.now()}`;
+      return `mobile_app_${Date.now()}`;
     }
   }
 
-  private async createFlutterProjectStructure(projectDir: string): Promise<void> {
-    this.logger.debug('Creando estructura básica del proyecto Flutter');
+  // Método de compatibilidad para Flutter (mantener para no romper el controller)
+  async generateFlutterProject(id: string, usuario?: Usuario): Promise<Buffer> {
+    this.logger.debug(`Iniciando generación Flutter para app ID: ${id}`);
     
-    const appName = this.generateAppName('');
+    const mobileApp = await this.findOne(id);
+    this.logger.debug(`App encontrada: ${mobileApp.nombre}, tipo: ${mobileApp.project_type}`);
     
-    // Crear estructura de directorios
-    const directories = [
-      'lib',
-      'lib/core/themes',
-      'lib/features/auth',
-      'lib/features/home',
-      'lib/shared/widgets',
-      'android/app',
-      'ios/Runner',
-      'assets/images',
-    ];
-    
-    for (const dir of directories) {
-      await fs.mkdirp(path.join(projectDir, dir));
+    // Si no es Flutter, actualizar a Flutter
+    if (mobileApp.project_type !== ProjectType.FLUTTER) {
+      this.logger.debug(`Cambiando tipo de proyecto de ${mobileApp.project_type} a Flutter`);
+      mobileApp.project_type = ProjectType.FLUTTER;
+      await this.mobileAppRepository.save(mobileApp);
     }
     
-    // Crear archivos base
-    await this.createPubspecYaml(projectDir, appName);
-    await this.createMainDart(projectDir);
-    await this.createAppDart(projectDir, appName);
-    await this.createAndroidConfig(projectDir, appName);
-    await this.createIOSConfig(projectDir, appName);
-    await this.createTheme(projectDir);
+    return this.generateProject(id, usuario);
   }
 
-  private async createPubspecYaml(projectDir: string, appName: string): Promise<void> {
-    const content = `name: ${appName}
-description: Aplicación Flutter generada automáticamente
-version: 1.0.0+1
-
-environment:
-  sdk: '>=3.0.0 <4.0.0'
-  flutter: ">=3.10.0"
-
-dependencies:
-  flutter:
-    sdk: flutter
-  cupertino_icons: ^1.0.6
-  provider: ^6.1.1
-  go_router: ^13.2.0
-  http: ^1.1.2
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.1
-
-flutter:
-  uses-material-design: true
-  assets:
-    - assets/images/
-`;
-    
-    await fs.writeFile(path.join(projectDir, 'pubspec.yaml'), content);
-  }
-
-  private async createMainDart(projectDir: string): Promise<void> {
-    const content = `import 'package:flutter/material.dart';
-import 'app.dart';
-
-void main() {
-  runApp(const MyApp());
-}
-`;
-    
-    await fs.writeFile(path.join(projectDir, 'lib/main.dart'), content);
-  }
-
-  private async createAppDart(projectDir: string, appName: string): Promise<void> {
-    const content = `import 'package:flutter/material.dart';
-import 'core/themes/app_theme.dart';
-import 'features/home/home_screen.dart';
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: '${appName}',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
-      home: const HomeScreen(),
-    );
-  }
-}
-`;
-    
-    await fs.writeFile(path.join(projectDir, 'lib/app.dart'), content);
-  }
-
-  private async createAndroidConfig(projectDir: string, packageName: string): Promise<void> {
-    const content = `android {
-    namespace "${packageName}"
-    compileSdkVersion flutter.compileSdkVersion
-    
-    defaultConfig {
-        applicationId "${packageName}"
-        minSdkVersion flutter.minSdkVersion
-        targetSdkVersion flutter.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
-    }
-}
-`;
-    
-    await fs.writeFile(path.join(projectDir, 'android/app/build.gradle'), content);
-  }
-
-  private async createIOSConfig(projectDir: string, appName: string): Promise<void> {
-    const content = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>CFBundleDisplayName</key>
-	<string>${appName}</string>
-	<key>CFBundleName</key>
-	<string>${appName}</string>
-</dict>
-</plist>
-`;
-    
-    await fs.writeFile(path.join(projectDir, 'ios/Runner/Info.plist'), content);
-  }
-
-  private async createTheme(projectDir: string): Promise<void> {
-    const content = `import 'package:flutter/material.dart';
-
-class AppTheme {
-  static ThemeData get lightTheme {
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-    );
-  }
-  
-  static ThemeData get darkTheme {
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
-        brightness: Brightness.dark,
-      ),
-    );
-  }
-}
-`;
-    
-    await fs.writeFile(path.join(projectDir, 'lib/core/themes/app_theme.dart'), content);
-    
-    // Home screen básico
-    const homeContent = `import 'package:flutter/material.dart';
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Flutter App'),
-      ),
-      body: const Center(
-        child: Text('¡Bienvenido a tu aplicación Flutter!'),
-      ),
-    );
-  }
-}
-`;
-    
-    await fs.writeFile(path.join(projectDir, 'lib/features/home/home_screen.dart'), homeContent);
-  }
-
-  private async processGeneratedCode(projectDir: string, code: string): Promise<void> {
-    const filePattern = /\[FILE: ([^\]]+)\]\s*```(?:\w+)?\s*([\s\S]*?)```/g;
-    let match;
-    
-    while ((match = filePattern.exec(code)) !== null) {
-      const filePath = match[1].trim();
-      const fileContent = match[2].trim();
-      
-      const fullPath = path.join(projectDir, filePath);
-      await fs.mkdirp(path.dirname(fullPath));
-      await fs.writeFile(fullPath, fileContent);
-      
-      this.logger.debug(`Archivo generado: ${filePath}`);
-    }
-  }
-
-  private async addDirectoryToZip(zip: AdmZip, dir: string, zipFolderPath = ''): Promise<void> {
-    const files = await fs.readdir(dir);
-    
-    for (const file of files) {
-      const filePath = path.join(dir, file);
-      const zipFilePath = path.join(zipFolderPath, file).replace(/\\/g, '/'); // Usar barras normales en ZIP
-      const stats = await fs.stat(filePath);
-      
-      if (stats.isDirectory()) {
-        // Crear directorio en ZIP
-        await this.addDirectoryToZip(zip, filePath, zipFilePath);
-      } else {
-        try {
-          const content = await fs.readFile(filePath);
-          zip.addFile(zipFilePath, content);
-          this.logger.debug(`Archivo agregado al ZIP: ${zipFilePath}`);
-        } catch (error) {
-          this.logger.error(`Error leyendo archivo ${filePath}:`, error);
-        }
-      }
-    }
-  }
 } 

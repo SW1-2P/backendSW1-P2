@@ -1,6 +1,6 @@
 import { Controller, Post, Body, BadRequestException } from '@nestjs/common';
 import { ChatgptService } from './chatgpt.service';
-import { GenerateTextDto, ChatCompletionDto } from './dto/create-chatgpt.dto';
+import { ChatCompletionDto } from './dto/create-chatgpt.dto';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('ChatGPT')
@@ -8,42 +8,22 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 export class ChatgptController {
   constructor(private readonly chatgptService: ChatgptService) {}
 
-  @Post('generate')
-  @ApiOperation({ summary: 'Genera texto utilizando OpenAI' })
-  @ApiResponse({ status: 200, description: 'Texto generado con éxito' })
-  @ApiResponse({ status: 400, description: 'Solicitud inválida' })
-  @ApiResponse({ status: 500, description: 'Error del servidor' })
-  async generateText(@Body() generateTextDto: GenerateTextDto) {
-    if (!generateTextDto.prompt) {
-      throw new BadRequestException('El prompt es requerido');
-    }
-    return {
-      text: await this.chatgptService.generateText(
-        generateTextDto.prompt,
-        generateTextDto.model,
-        generateTextDto.maxTokens,
-        generateTextDto.temperature
-      )
-    };
-  }
-
   @Post('chat')
-  @ApiOperation({ summary: 'Genera una respuesta de chat utilizando OpenAI' })
-  @ApiResponse({ status: 200, description: 'Respuesta generada con éxito' })
+  @ApiOperation({ summary: 'Genera respuestas usando o3 para propósitos específicos' })
+  @ApiResponse({ status: 200, description: 'Respuesta generada con éxito usando o3' })
   @ApiResponse({ status: 400, description: 'Solicitud inválida' })
   @ApiResponse({ status: 500, description: 'Error del servidor' })
   async chat(@Body() chatCompletionDto: ChatCompletionDto) {
     if (!chatCompletionDto.messages || !Array.isArray(chatCompletionDto.messages) || chatCompletionDto.messages.length === 0) {
       throw new BadRequestException('Se requiere un array de mensajes válido');
     }
+    
     return {
       response: await this.chatgptService.chat(
         chatCompletionDto.messages,
-        chatCompletionDto.model,
-        chatCompletionDto.temperature
+        chatCompletionDto.model || 'o3', // Por defecto o3
+        chatCompletionDto.temperature || 0.7
       )
     };
   }
-
-
 }
