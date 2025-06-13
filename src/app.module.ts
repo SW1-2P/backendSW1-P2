@@ -10,6 +10,7 @@ import { MockupsModule } from './mockups/mockups.module';
 
 import { ChatgptModule } from './chatgpt/chatgpt.module';
 import { MobileGeneratorModule } from './mobile-generator/mobile-generator.module';
+import { DatabaseTestModule } from './database/database-test.module';
 
 @Module({
   imports: [
@@ -21,8 +22,13 @@ import { MobileGeneratorModule } from './mobile-generator/mobile-generator.modul
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || 'postgres',
       database: process.env.DB_NAME || 'backend_sw',
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
       autoLoadEntities: true,
       synchronize: true,
+      logging: ['error', 'warn', 'info', 'log'],
+      ssl: process.env.DB_SSL === 'true' ? { 
+        rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' 
+      } : false,
     }),
     UsuariosModule,
     AuthModule,
@@ -30,6 +36,7 @@ import { MobileGeneratorModule } from './mobile-generator/mobile-generator.modul
     MockupsModule,
     ChatgptModule,
     MobileGeneratorModule,
+    DatabaseTestModule,
   ],
   controllers: [AppController],
   providers: [AppService],
