@@ -6,8 +6,10 @@ import { Usuario } from '../usuarios/entities/usuario.entity';
 import { MobileApp, ProjectType } from './entities/mobile-app.entity';
 import { CreateMobileAppDto } from './dto/create-mobile-app.dto';
 import { UpdateMobileAppDto } from './dto/update-mobile-app.dto';
+import { CreateFromPromptDto } from './dto/create-from-prompt.dto';
 import { GeneratorFactory } from './generators/generator.factory';
 import { MockupIntegrationService } from './services/mockup-integration.service';
+import { PromptEnrichmentService } from './services/prompt-enrichment.service';
 import { GenerationContext } from './interfaces/generator.interface';
 
 @Injectable()
@@ -19,6 +21,7 @@ export class MobileGeneratorService {
     private mobileAppRepository: Repository<MobileApp>,
     private readonly generatorFactory: GeneratorFactory,
     private readonly mockupService: MockupIntegrationService,
+    private readonly promptEnrichmentService: PromptEnrichmentService,
   ) {}
 
   // CRUD Operations
@@ -46,6 +49,47 @@ export class MobileGeneratorService {
     });
     
     return await this.mobileAppRepository.save(mobileApp);
+  }
+
+  async createFromPrompt(createFromPromptDto: CreateFromPromptDto, userId: string): Promise<MobileApp> {
+    this.logger.debug(`🤖 Creando app desde prompt para usuario: ${userId}`);
+    
+    try {
+      // 1. Validar tipo de proyecto
+      const projectType = createFromPromptDto.project_type || ProjectType.FLUTTER;
+      if (!this.generatorFactory.isSupported(projectType)) {
+        throw new Error(`Tipo de proyecto no soportado: ${projectType}`);
+      }
+
+      // 2. Enriquecer prompt automáticamente con IA
+      this.logger.debug('🔍 Enriqueciendo prompt con funcionalidades específicas...');
+      this.logger.debug(`📥 Prompt original (${createFromPromptDto.prompt.length} chars): "${createFromPromptDto.prompt.substring(0, 100)}..."`);
+      
+      const enrichedPrompt = await this.promptEnrichmentService.enrichPrompt(createFromPromptDto.prompt);
+      
+      this.logger.debug(`📤 Prompt enriquecido (${enrichedPrompt.length} chars): "${enrichedPrompt.substring(0, 200)}..."`);
+      
+      // 3. Generar nombre automáticamente si no se proporciona
+      const nombre = createFromPromptDto.nombre || this.generateAppName(createFromPromptDto.prompt);
+      
+      // 4. Crear aplicación con prompt enriquecido
+      const mobileApp = this.mobileAppRepository.create({
+        nombre,
+        prompt: enrichedPrompt, // ⭐ Prompt enriquecido automáticamente
+        project_type: projectType,
+        config: createFromPromptDto.config,
+        user_id: userId,
+      });
+      
+      const savedApp = await this.mobileAppRepository.save(mobileApp);
+      
+      this.logger.debug(`✅ App creada desde prompt enriquecido: ${savedApp.id}`);
+      return savedApp;
+      
+    } catch (error) {
+      this.logger.error(`❌ Error creando app desde prompt: ${error.message}`);
+      throw new InternalServerErrorException(`Error creando aplicación desde prompt: ${error.message}`);
+    }
   }
 
   async findAllByUserId(userId: string): Promise<MobileApp[]> {

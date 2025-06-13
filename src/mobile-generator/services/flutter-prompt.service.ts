@@ -9,10 +9,57 @@ export class FlutterPromptService {
     return `Eres un experto desarrollador Flutter que genera aplicaciones modernas desde mockups XML de Draw.io.
 
 ARQUITECTURA OBLIGATORIA:
-- Flutter con Riverpod para estado (flutter_riverpod: ^2.4.9)
+- Flutter puro con StatefulWidget para estado (NO usar Riverpod ni Provider)
 - GoRouter para navegación (go_router: ^13.0.0)
 - Material Design 3 con useMaterial3: true
 - Estructura modular: features/[domain]/screens/
+
+PROHIBICIONES ABSOLUTAS:
+❌ NUNCA uses flutter_riverpod
+❌ NUNCA uses provider package
+❌ NUNCA uses ChangeNotifier
+❌ NUNCA uses Consumer widgets
+❌ NUNCA uses ProviderScope
+❌ NUNCA uses StateNotifier
+❌ NUNCA uses ref.watch() o ref.read()
+❌ NUNCA importes 'package:flutter_riverpod/flutter_riverpod.dart'
+❌ NUNCA importes 'package:provider/provider.dart'
+
+SOLO USA:
+✅ StatefulWidget con setState() para estado
+✅ Variables de instancia simples (String, bool, int)
+✅ TextEditingController para formularios
+✅ GlobalKey<FormState> para validación
+
+APPTHEME CORRECTO (SIN REFERENCIAS CIRCULARES):
+\`\`\`dart
+class AppTheme {
+  // ✅ CORRECTO: Definir colores como constantes primero
+  static const Color primaryColor = Color(0xFF2196F3);
+  static const Color secondaryColor = Color(0xFF03DAC6);
+  
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primaryColor, // ✅ Usar la constante, NO _colorScheme.primary
+        brightness: Brightness.light,
+      ),
+      // Resto de la configuración...
+    );
+  }
+}
+\`\`\`
+
+❌ INCORRECTO (CAUSA STACK OVERFLOW):
+\`\`\`dart
+class AppTheme {
+  static final ColorScheme _colorScheme = ColorScheme.fromSeed(
+    seedColor: _colorScheme.primary, // ❌ REFERENCIA CIRCULAR
+    brightness: Brightness.light,
+  );
+}
+\`\`\`
 
 DETECCIÓN AUTOMÁTICA DE PANTALLAS:
 - Si el XML tiene múltiples elementos 'android.phone2' → CREAR NAVIGATION DRAWER AUTOMÁTICAMENTE
@@ -143,11 +190,11 @@ NavigationDrawer(
 FORMULARIOS REACTIVOS:
 - TextFormField con borderRadius: 12
 - GlobalKey<FormState> para validación
-- Estados con Riverpod
-- Loading states en botones
+- Estados con StatefulWidget y setState()
+- Loading states en botones con variables bool
 
 ARCHIVOS OBLIGATORIOS:
-[FILE: lib/main.dart] - ProviderScope + runApp
+[FILE: lib/main.dart] - runApp(const MyApp())
 [FILE: lib/app.dart] - MaterialApp.router con AppRouter().router
 [FILE: lib/core/router/app_router.dart] - Singleton pattern
 [FILE: lib/core/themes/app_theme.dart] - Material Design 3
@@ -160,13 +207,25 @@ USAR FORMATO [FILE: ruta] para cada archivo generado`;
   }
 
   createUserPrompt(context: GenerationContext, screenDetection?: any): string {
-    // Generar instrucciones estructuradas del XML
-    const structuredInstructions = context.xml ? this.createStructuredInstructions(context.xml, screenDetection) : '';
+    // Si HAY XML, usar flujo específico para XML
+    if (context.xml) {
+      return this.createXmlBasedPrompt(context, screenDetection);
+    }
     
-    return `Genera una aplicación Flutter completa con las siguientes especificaciones:
+    // Si NO hay XML, usar flujo específico para prompts
+    return this.createPromptBasedPrompt(context);
+  }
+
+  /**
+   * Crea prompt optimizado para generación desde XML (flujo original)
+   */
+  private createXmlBasedPrompt(context: GenerationContext, screenDetection?: any): string {
+    const structuredInstructions = this.createStructuredInstructions(context.xml!, screenDetection);
+    
+    return `Genera una aplicación Flutter completa desde mockup XML:
 
 ANÁLISIS DEL MOCKUP:
-${context.xml ? this.analyzeXmlContent(context.xml, screenDetection) : 'No hay XML disponible'}
+${this.analyzeXmlContent(context.xml!, screenDetection)}
 
 ${structuredInstructions}
 
@@ -174,7 +233,7 @@ CONTEXTO ADICIONAL:
 - Prompt del usuario: ${context.prompt || 'No especificado'}
 - Configuración: ${JSON.stringify(context.config || {})}
 
-REQUERIMIENTOS ESPECÍFICOS:
+REQUERIMIENTOS ESPECÍFICOS PARA XML:
 1. **ANALIZA EL XML** y extrae elementos específicos (botones, inputs, radio buttons, textos)
 2. **DETECTA MÚLTIPLES PANTALLAS** por número de elementos android.phone2
 3. **GENERA AppDrawer AUTOMÁTICAMENTE** si hay múltiples pantallas
@@ -192,20 +251,108 @@ ${screenDetection ? this.formatScreenDetection(screenDetection) : ''}
 
 XML COMPLETO PARA REFERENCIA:
 \`\`\`xml
-${context.xml ? context.xml.substring(0, 2000) + (context.xml.length > 2000 ? '...[truncated]' : '') : 'No disponible'}
+${context.xml!.substring(0, 2000) + (context.xml!.length > 2000 ? '...[truncated]' : '')}
 \`\`\`
 
 VALIDACIÓN REQUERIDA:
-- ✅ CreateProjectScreen DEBE tener AppRadioGroup con User access
+- ✅ Generar EXACTAMENTE las pantallas del XML
 - ✅ TODOS los textos del mockup deben aparecer en las pantallas
 - ✅ Colores del mockup aplicados en AppTheme
 - ✅ Navigation drawer para múltiples pantallas
 - ✅ Imports correctos en todas las pantallas
-- ✅ NAVEGACIÓN CON GoRouter: usar context.go() y context.push()
-- ✅ NUNCA usar Navigator.pushNamed() en AppDrawer
-- ✅ Import 'package:go_router/go_router.dart' en AppDrawer
 
 Genera MÍNIMO 6 archivos de código Flutter funcional con imports relativos correctos.`;
+  }
+
+  /**
+   * Crea prompt optimizado para generación desde descripción de texto (prompt enriquecido)
+   */
+  private createPromptBasedPrompt(context: GenerationContext): string {
+    const enrichedPrompt = context.prompt || 'Aplicación móvil estándar';
+    const requestedFeatures = this.extractRequestedFeatures(enrichedPrompt);
+    const requiredScreens = this.extractExactScreensRequested(enrichedPrompt);
+    const shouldIncludeDrawer = requiredScreens.length > 2;
+    const domainContext = this.detectDomainContext(enrichedPrompt);
+
+    return `Genera una aplicación Flutter EXACTAMENTE como se solicita:
+
+DESCRIPCIÓN ORIGINAL DEL USUARIO:
+${enrichedPrompt}
+
+CONTEXTO ESPECÍFICO DETECTADO:
+${domainContext}
+
+FUNCIONALIDADES ESPECÍFICAMENTE SOLICITADAS:
+${requestedFeatures}
+
+PANTALLAS QUE DEBES GENERAR (NO MÁS, NO MENOS):
+${requiredScreens.join('\n')}
+
+${shouldIncludeDrawer ? '✅ INCLUIR: Navigation drawer con las pantallas solicitadas' : '❌ NO INCLUIR: Navigation drawer (pocas pantallas)'}
+
+CONFIGURACIÓN ADICIONAL:
+${JSON.stringify(context.config || {}, null, 2)}
+
+REQUERIMIENTOS CRÍTICOS - SOLO LO SOLICITADO:
+1. **GENERA ÚNICAMENTE** las pantallas específicamente mencionadas por el usuario
+2. **NO AGREGUES** pantallas adicionales que no fueron solicitadas
+3. **IMPLEMENTA SOLO** las funcionalidades explícitamente mencionadas
+4. **USA ARQUITECTURA LIMPIA**: Flutter + GoRouter + Material Design 3
+5. **ELIMINA flutter_secure_storage** del pubspec.yaml
+6. **IMPORTS CORRECTOS** en todos los archivos
+7. **AppRouter().router** (NO AppRouter.router)
+8. **PROHIBIDO USAR PROVIDERS**: NO usar Riverpod, Provider, ChangeNotifier, Consumer
+9. **SOLO StatefulWidget**: Para estado usar setState() únicamente
+
+ARQUITECTURA TÉCNICA MÍNIMA:
+- Flutter puro con StatefulWidget para estado (NO usar Riverpod ni Provider)
+- GoRouter para navegación (go_router: ^13.0.0)
+- Material Design 3 con useMaterial3: true
+- Estructura simple: features/auth/screens/ para auth, etc.
+- Solo las pantallas solicitadas por el usuario
+- Navigation drawer SOLO si hay más de 2 pantallas principales
+- Formularios básicos con validación simple usando StatefulWidget
+- Estados simples (loading, error, success) con setState() donde sea necesario
+
+PROHIBICIONES ESTRICTAS:
+❌ NO usar flutter_riverpod
+❌ NO usar provider package
+❌ NO usar ChangeNotifier
+❌ NO usar Consumer widgets
+❌ NO usar ProviderScope
+❌ NO usar StateNotifier
+❌ NO usar AsyncValue
+❌ NO usar ref.watch() o ref.read()
+❌ NO importar 'package:flutter_riverpod/flutter_riverpod.dart'
+❌ NO importar 'package:provider/provider.dart'
+❌ NO crear referencias circulares en AppTheme
+❌ NO usar variables que se referencien a sí mismas
+
+IMPLEMENTACIÓN ESPECÍFICA REQUERIDA:
+✅ SOLO las pantallas específicamente solicitadas
+✅ SOLO las funcionalidades específicamente mencionadas
+✅ Navigation drawer SOLO si hay más de 2 pantallas principales
+✅ Formularios básicos apropiados para las pantallas solicitadas
+✅ Navegación entre las pantallas solicitadas con GoRouter
+✅ Imports correctos y código limpio
+✅ AppRouter().router (NO AppRouter.router)
+✅ StatefulWidget con setState() para TODOS los estados
+✅ Variables de instancia simples (String, bool, int) para datos
+✅ Formularios con GlobalKey<FormState> y TextEditingController
+
+VALIDACIÓN CRÍTICA:
+- ¿Generé SOLO las pantallas que el usuario pidió?
+- ¿No agregué pantallas adicionales innecesarias?
+- ¿El drawer incluye SOLO las pantallas solicitadas?
+- ¿Los formularios corresponden a las funcionalidades pedidas?
+- ¿NO usé ningún Provider, Riverpod o ChangeNotifier?
+- ¿Todas las pantallas usan StatefulWidget con setState()?
+- ¿No hay imports de flutter_riverpod o provider?
+- ¿AppTheme NO tiene referencias circulares?
+- ¿Los colores están definidos como constantes antes de usarse?
+- ¿ColorScheme.fromSeed usa constantes, NO variables que se referencien a sí mismas?
+
+Genera EXACTAMENTE los archivos necesarios para implementar SOLO lo que el usuario solicitó - ni más, ni menos.`;
   }
 
   private analyzeXmlContent(xml: string, screenDetection?: any): string {
@@ -426,5 +573,231 @@ Genera MÍNIMO 6 archivos de código Flutter funcional con imports relativos cor
       return [...new Set(colorMatches)].slice(0, 3);
     }
     return [];
+  }
+
+  /**
+   * Analiza el dominio específico de la aplicación desde el prompt enriquecido
+   */
+  private analyzePromptDomain(prompt: string): string {
+    const lowerPrompt = prompt.toLowerCase();
+    const domains = [
+      { keywords: ['gimnasio', 'fitness', 'entrenamiento', 'ejercicio', 'rutina'], name: 'FITNESS & GYM', icon: '💪' },
+      { keywords: ['delivery', 'comida', 'restaurante', 'pedido', 'entrega'], name: 'FOOD DELIVERY', icon: '🍔' },
+      { keywords: ['contable', 'financiero', 'dinero', 'transaccion', 'factura'], name: 'FINANZAS', icon: '💰' },
+      { keywords: ['educativo', 'escolar', 'estudiante', 'curso', 'aprendizaje'], name: 'EDUCACIÓN', icon: '📚' },
+      { keywords: ['medico', 'salud', 'hospital', 'cita', 'paciente'], name: 'SALUD', icon: '🏥' },
+      { keywords: ['tienda', 'ecommerce', 'producto', 'venta', 'carrito'], name: 'E-COMMERCE', icon: '🛒' },
+      { keywords: ['social', 'chat', 'mensaje', 'amigo', 'red'], name: 'SOCIAL', icon: '👥' }
+    ];
+
+    for (const domain of domains) {
+      if (domain.keywords.some(keyword => lowerPrompt.includes(keyword))) {
+        return `${domain.icon} DOMINIO DETECTADO: ${domain.name}`;
+      }
+    }
+    return '🔧 DOMINIO: APLICACIÓN GENERAL';
+  }
+
+  /**
+   * Extrae funcionalidades específicas del prompt enriquecido
+   */
+  private extractFunctionalities(prompt: string): string {
+    const functionalities: string[] = [];
+    
+    // Buscar secciones de funcionalidades
+    const baseFunctionalitiesMatch = prompt.match(/FUNCIONALIDADES BASE[^:]*:([\s\S]*?)(?=FUNCIONALIDADES ESPECÍFICAS|PANTALLAS|$)/i);
+    const specificFunctionalitiesMatch = prompt.match(/FUNCIONALIDADES ESPECÍFICAS[^:]*:([\s\S]*?)(?=PANTALLAS|$)/i);
+    
+    if (baseFunctionalitiesMatch) {
+      const baseItems = baseFunctionalitiesMatch[1]
+        .split('-')
+        .map(item => item.trim())
+        .filter(item => item.length > 10)
+        .slice(0, 8);
+      
+      if (baseItems.length > 0) {
+        functionalities.push('📋 FUNCIONALIDADES BASE:');
+        baseItems.forEach(item => functionalities.push(`   • ${item}`));
+      }
+    }
+    
+    if (specificFunctionalitiesMatch) {
+      const specificItems = specificFunctionalitiesMatch[1]
+        .split('-')
+        .map(item => item.trim())
+        .filter(item => item.length > 10)
+        .slice(0, 8);
+      
+      if (specificItems.length > 0) {
+        functionalities.push('🎯 FUNCIONALIDADES ESPECÍFICAS:');
+        specificItems.forEach(item => functionalities.push(`   • ${item}`));
+      }
+    }
+    
+    return functionalities.length > 0 ? functionalities.join('\n') : 'Funcionalidades básicas de aplicación móvil';
+  }
+
+  /**
+   * Extrae EXACTAMENTE las funcionalidades solicitadas por el usuario
+   */
+  private extractRequestedFeatures(prompt: string): string {
+    const lowerPrompt = prompt.toLowerCase();
+    const features: string[] = [];
+    
+    // Detectar funcionalidades específicas mencionadas
+    if (lowerPrompt.includes('login') || lowerPrompt.includes('iniciar sesion') || lowerPrompt.includes('autenticacion')) {
+      features.push('🔐 Funcionalidad de Login/Autenticación');
+    }
+    
+    if (lowerPrompt.includes('register') || lowerPrompt.includes('registro') || lowerPrompt.includes('crear cuenta')) {
+      features.push('📝 Funcionalidad de Registro de usuarios');
+    }
+    
+    if (lowerPrompt.includes('home') || lowerPrompt.includes('dashboard') || lowerPrompt.includes('panel') || lowerPrompt.includes('inicio')) {
+      features.push('🏠 Pantalla principal/Home con datos específicos');
+    }
+    
+    if (lowerPrompt.includes('perfil') || lowerPrompt.includes('profile') || lowerPrompt.includes('cuenta')) {
+      features.push('👤 Gestión de perfil de usuario');
+    }
+    
+    if (lowerPrompt.includes('configuracion') || lowerPrompt.includes('settings') || lowerPrompt.includes('ajustes')) {
+      features.push('⚙️ Configuraciones de la aplicación');
+    }
+    
+    // Detectar funcionalidades específicas de gym/fitness
+    if (lowerPrompt.includes('gym') || lowerPrompt.includes('gimnasio') || lowerPrompt.includes('fitness')) {
+      features.push('💪 Aplicación específica de GYM/FITNESS');
+      
+      if (lowerPrompt.includes('rutina') || lowerPrompt.includes('ejercicio') || lowerPrompt.includes('workout')) {
+        features.push('🏋️ Gestión de rutinas de ejercicio');
+      }
+      if (lowerPrompt.includes('progreso') || lowerPrompt.includes('estadistica') || lowerPrompt.includes('progress')) {
+        features.push('📊 Seguimiento de progreso y estadísticas');
+      }
+      if (lowerPrompt.includes('muscle') || lowerPrompt.includes('musculo') || lowerPrompt.includes('peso')) {
+        features.push('💪 Registro de pesos y grupos musculares');
+      }
+    }
+    
+    // Si no se detectan funcionalidades específicas, usar el prompt completo
+    if (features.length === 0) {
+      features.push(`🎯 Funcionalidad solicitada: ${prompt.substring(0, 100)}...`);
+    }
+    
+    return features.join('\n');
+  }
+
+  /**
+   * Extrae EXACTAMENTE las pantallas solicitadas por el usuario
+   */
+  private extractExactScreensRequested(prompt: string): string[] {
+    const lowerPrompt = prompt.toLowerCase();
+    const screens: string[] = [];
+    
+    // Detectar pantallas específicas mencionadas
+    if (lowerPrompt.includes('login') || lowerPrompt.includes('iniciar sesion')) {
+      screens.push('📱 LoginScreen - Pantalla de inicio de sesión');
+    }
+    
+    if (lowerPrompt.includes('register') || lowerPrompt.includes('registro')) {
+      screens.push('📱 RegisterScreen - Pantalla de registro');
+    }
+    
+    // Detectar variantes de pantalla principal/home
+    if (lowerPrompt.includes('home') || lowerPrompt.includes('inicio') || 
+        lowerPrompt.includes('dashboard') || lowerPrompt.includes('panel') ||
+        lowerPrompt.includes('principal')) {
+      screens.push('📱 HomeScreen - Pantalla principal');
+    }
+    
+    if (lowerPrompt.includes('perfil') || lowerPrompt.includes('profile')) {
+      screens.push('📱 ProfileScreen - Pantalla de perfil');
+    }
+    
+    if (lowerPrompt.includes('configuracion') || lowerPrompt.includes('settings') || lowerPrompt.includes('ajustes')) {
+      screens.push('📱 SettingsScreen - Pantalla de configuraciones');
+    }
+    
+    // Detectar pantallas específicas de gym/fitness
+    if (lowerPrompt.includes('gym') || lowerPrompt.includes('gimnasio') || lowerPrompt.includes('fitness')) {
+      if (lowerPrompt.includes('rutina') || lowerPrompt.includes('ejercicio') || lowerPrompt.includes('workout')) {
+        screens.push('📱 WorkoutScreen - Pantalla de rutinas de ejercicio');
+      }
+      if (lowerPrompt.includes('progreso') || lowerPrompt.includes('estadistica') || lowerPrompt.includes('progress')) {
+        screens.push('📱 ProgressScreen - Pantalla de progreso y estadísticas');
+      }
+    }
+    
+    // Si no se detectan pantallas específicas, usar pantallas básicas
+    if (screens.length === 0) {
+      screens.push('📱 HomeScreen - Pantalla principal');
+    }
+    
+    return screens;
+  }
+
+  /**
+   * Extrae pantallas requeridas del prompt enriquecido (método legacy)
+   */
+  private extractRequiredScreens(prompt: string): string {
+    const screens: string[] = [];
+    
+    // Buscar sección de pantallas
+    const screensMatch = prompt.match(/PANTALLAS[^:]*:([\s\S]*?)(?=IMPORTANTE|Este prompt|$)/i);
+    
+    if (screensMatch) {
+      const screenItems = screensMatch[1]
+        .split('-')
+        .map(item => item.trim())
+        .filter(item => item.length > 5 && item.toLowerCase().includes('pantalla'))
+        .slice(0, 12);
+      
+      if (screenItems.length > 0) {
+        screens.push('📱 PANTALLAS ESPECÍFICAS A IMPLEMENTAR:');
+        screenItems.forEach((item, index) => {
+          const cleanItem = item.replace(/^pantalla\s+de\s*/i, '').trim();
+          screens.push(`   ${index + 1}. ${cleanItem}`);
+        });
+        
+        screens.push('\n🗂️ NAVIGATION DRAWER DEBE INCLUIR TODAS ESTAS PANTALLAS');
+      }
+    }
+    
+    return screens.length > 0 ? screens.join('\n') : 'Pantallas básicas: Login, Dashboard, Perfil, Configuraciones';
+  }
+
+  /**
+   * Detecta el contexto específico del dominio para proporcionar datos relevantes
+   */
+  private detectDomainContext(prompt: string): string {
+    const lowerPrompt = prompt.toLowerCase();
+    
+    if (lowerPrompt.includes('gym') || lowerPrompt.includes('gimnasio') || lowerPrompt.includes('fitness')) {
+      return `💪 APLICACIÓN DE GYM/FITNESS DETECTADA:
+- HomeScreen debe mostrar: rutinas del día, progreso reciente, próximos entrenamientos
+- Datos específicos: ejercicios, series, repeticiones, pesos, músculos trabajados
+- UI específica: gráficos de progreso, calendarios de entrenamientos, listas de ejercicios
+- Colores sugeridos: azules/verdes para fitness, rojos para esfuerzo, grises para descanso
+- Iconos específicos: fitness_center, timeline, insights, schedule, person`;
+    }
+    
+    if (lowerPrompt.includes('delivery') || lowerPrompt.includes('comida') || lowerPrompt.includes('restaurante')) {
+      return `🍔 APLICACIÓN DE DELIVERY DETECTADA:
+- HomeScreen debe mostrar: restaurantes cercanos, pedidos recientes, ofertas especiales
+- Datos específicos: menús, precios, tiempos de entrega, calificaciones
+- UI específica: cards de restaurantes, carrito de compras, mapa de ubicaciones
+- Colores sugeridos: rojos/naranjas para comida, verdes para disponible`;
+    }
+    
+    if (lowerPrompt.includes('finanza') || lowerPrompt.includes('banco') || lowerPrompt.includes('dinero')) {
+      return `💰 APLICACIÓN FINANCIERA DETECTADA:
+- HomeScreen debe mostrar: balance actual, transacciones recientes, gastos del mes
+- Datos específicos: montos, categorías, fechas, gráficos de gastos
+- UI específica: cards de balance, listas de transacciones, gráficos circulares
+- Colores sugeridos: azules para confianza, verdes para ingresos, rojos para gastos`;
+    }
+    
+    return '🔧 APLICACIÓN GENERAL: HomeScreen con datos básicos apropiados para la funcionalidad solicitada';
   }
 } 

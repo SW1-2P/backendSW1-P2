@@ -82,7 +82,7 @@ export class AngularGenerator extends BaseGenerator {
     const systemPrompt = this.createSystemPrompt();
     const userPrompt = this.createUserPrompt(context);
     
-    this.logger.debug('🤖 Generando código Angular con GPT-4o...');
+    this.logger.debug('🤖 Generando código Angular con o3...');
     
     // Usar método especializado para Angular
     return await this.chatgptService.generateAngularCode(systemPrompt, userPrompt);

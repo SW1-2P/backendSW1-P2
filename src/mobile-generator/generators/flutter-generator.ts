@@ -29,7 +29,7 @@ export class FlutterGenerator extends BaseGenerator {
       this.logger.debug('📁 Creando estructura del proyecto...');
       await this.createProjectStructure(tempDir, context);
       
-      this.logger.debug('🤖 Generando código con GPT-4o...');
+      this.logger.debug('🤖 Generando código con o3...');
       const generatedCode = await this.generateWithAI(context);
       
       this.logger.debug('🔧 Procesando código generado...');
@@ -70,14 +70,23 @@ export class FlutterGenerator extends BaseGenerator {
   }
 
   private async generateWithAI(context: GenerationContext): Promise<string> {
-    this.logger.debug('🤖 Generando código Flutter con GPT-4o...');
+    this.logger.debug('🤖 Generando código Flutter con o3...');
     
     // Detectar elementos del XML
     const screenDetection = context.xml ? 
       this.screenDetector.detectScreens(context.xml) : null;
     
+    this.logger.debug(`🔍 Análisis de contexto: XML=${!!context.xml}, Prompt=${!!context.prompt}`);
+    if (context.prompt) {
+      this.logger.debug(`📝 Prompt length: ${context.prompt.length} chars`);
+      this.logger.debug(`📋 Primer fragmento del prompt: "${context.prompt.substring(0, 200)}..."`);
+    }
+    
     const systemPrompt = this.promptService.createSystemPrompt();
     const userPrompt = this.promptService.createUserPrompt(context, screenDetection);
+    
+    this.logger.debug(`📤 User prompt enviado a ChatGPT (${userPrompt.length} chars)`);
+    this.logger.debug(`🔍 Primer fragmento del user prompt: "${userPrompt.substring(0, 300)}..."`);
     
     return await this.chatgptService.generateFlutterCode(systemPrompt, userPrompt);
   }
@@ -128,6 +137,49 @@ export class FlutterGenerator extends BaseGenerator {
       .replace(/RaisedButton/g, 'ElevatedButton')
       .replace(/FlatButton/g, 'TextButton')
       .replace(/primaryColor/g, 'colorScheme.primary');
+    
+    // 6. CORREGIR referencias circulares y errores de sintaxis (aplicar a TODOS los archivos)
+    fixedContent = this.fixCircularReferences(fixedContent);
+    
+    // 7. CORRECCIONES ADICIONALES ESPECÍFICAS PARA PANTALLAS
+    if (filePath.includes('_screen.dart')) {
+      // Corregir referencias a AppTheme en pantallas
+      fixedContent = fixedContent.replace(/AppTheme\.primary/g, 'AppTheme.colorSchemePrimary');
+      fixedContent = fixedContent.replace(/AppTheme\.secondary/g, 'AppTheme.secondaryBlue');
+      
+      // Corregir tipos de función incorrectos
+      fixedContent = fixedContent.replace(
+        /color:\s*AppTheme\.([a-zA-Z]+),/g,
+        'color: AppTheme.$1,'
+      );
+      
+      // Asegurar que se declare colorScheme al inicio del build method
+      if (!fixedContent.includes('final colorScheme = Theme.of(context).colorScheme;')) {
+        fixedContent = fixedContent.replace(
+          /@override\s+Widget\s+build\(BuildContext\s+context\)\s*\{/,
+          `@override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;`
+        );
+      }
+      
+      // Corregir referencias directas a colores sin contexto
+      fixedContent = fixedContent.replace(
+        /color:\s*Colors\.([a-zA-Z]+)\.withOpacity/g,
+        'color: colorScheme.primary.withOpacity'
+      );
+    }
+    
+    // 8. CORRECCIONES GLOBALES ADICIONALES
+    
+    // Corregir imports faltantes de AppTheme
+    if (fixedContent.includes('AppTheme.') && !fixedContent.includes("import '../../../core/themes/app_theme.dart'")) {
+      fixedContent = fixedContent.replace(
+        /import 'package:flutter\/material\.dart';/,
+        `import 'package:flutter/material.dart';
+import '../../../core/themes/app_theme.dart';`
+      );
+    }
     
     return fixedContent;
   }
@@ -196,6 +248,110 @@ class MyApp extends ConsumerWidget`
     return content;
   }
 
+  private fixCircularReferences(content: string): string {
+    // Detectar y corregir referencias circulares en AppTheme
+    
+    // Patrón problemático: _colorScheme.primary dentro de la definición de _colorScheme
+    const circularPattern = /static\s+final\s+ColorScheme\s+_colorScheme\s*=\s*ColorScheme\.fromSeed\s*\(\s*seedColor:\s*_colorScheme\.primary/g;
+    
+    if (circularPattern.test(content)) {
+      this.logger.warn('🔧 Corrigiendo referencia circular en AppTheme...');
+      
+      // Reemplazar con una estructura correcta usando los mismos colores del tema
+      content = content.replace(
+        /static\s+final\s+ColorScheme\s+_colorScheme[\s\S]*?(?=static\s+ThemeData|$)/g,
+        `  // ✅ Definir colores como constantes primero
+  static const Color colorSchemePrimary = Color(0xFF4CAF50); // Verde
+  static const Color secondaryBlue = Color(0xFF2196F3);
+  static const Color secondaryOrange = Color(0xFFFF9800);
+  static const Color secondaryPurple = Color(0xFF9C27B0);
+  
+  `
+      );
+      
+      // Corregir referencias a _colorScheme.primary por primaryColor
+      content = content.replace(/_colorScheme\.primary/g, 'colorSchemePrimary');
+      content = content.replace(/_colorScheme\.secondary/g, 'secondaryBlue');
+      content = content.replace(/_colorScheme\.accent/g, 'colorSchemePrimary');
+      
+      // Asegurar que ColorScheme.fromSeed use la constante
+      content = content.replace(
+        /ColorScheme\.fromSeed\s*\(\s*seedColor:\s*[^,)]+/g,
+        'ColorScheme.fromSeed(\n        seedColor: colorSchemePrimary'
+      );
+    }
+    
+    // NUEVAS CORRECCIONES PARA ERRORES DE SINTAXIS
+    
+    // 1. Corregir nombres de variables inválidos como "colorScheme.primary"
+    content = content.replace(
+      /static\s+const\s+Color\s+colorScheme\.primary/g,
+      'static const Color colorSchemePrimary'
+    );
+    
+    content = content.replace(
+      /static\s+const\s+Color\s+colorScheme\.secondary/g,
+      'static const Color colorSchemeSecondary'
+    );
+    
+    // 2. Corregir referencias a colorScheme.primary en el código
+    content = content.replace(/colorScheme\.primary/g, 'colorSchemePrimary');
+    content = content.replace(/colorScheme\.secondary/g, 'colorSchemeSecondary');
+    
+    // 3. Corregir referencias a AppTheme.primary (debe ser AppTheme.colorSchemePrimary)
+    content = content.replace(/AppTheme\.primary/g, 'AppTheme.colorSchemePrimary');
+    content = content.replace(/AppTheme\.secondary/g, 'AppTheme.secondaryBlue');
+    
+    // 4. Corregir definiciones de colores malformadas
+    content = content.replace(
+      /static\s+const\s+Color\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*Color\s*\(\s*([^)]+)\s*\)\s*;?\s*\/\/[^\n]*/g,
+      'static const Color $1 = Color($2);'
+    );
+    
+    // 5. CORRECCIONES ESPECÍFICAS PARA REFERENCIAS DE COLORES EN PANTALLAS
+    
+    // Corregir uso directo de colorSchemePrimary sin contexto
+    content = content.replace(
+      /backgroundColor:\s*colorSchemePrimary/g,
+      'backgroundColor: Theme.of(context).colorScheme.primary'
+    );
+    
+    content = content.replace(
+      /color:\s*colorSchemePrimary(?!,)/g,
+      'color: Theme.of(context).colorScheme.primary'
+    );
+    
+    content = content.replace(
+      /color:\s*colorSchemePrimary,/g,
+      'color: Theme.of(context).colorScheme.primary,'
+    );
+    
+    // Corregir referencias incorrectas a Theme.of(context).colorSchemePrimary
+    content = content.replace(
+      /Theme\.of\(context\)\.colorSchemePrimary/g,
+      'Theme.of(context).colorScheme.primary'
+    );
+    
+    // Corregir otras referencias de colores sin contexto
+    content = content.replace(
+      /color:\s*secondaryBlue/g,
+      'color: Theme.of(context).colorScheme.secondary'
+    );
+    
+    content = content.replace(
+      /backgroundColor:\s*secondaryBlue/g,
+      'backgroundColor: Theme.of(context).colorScheme.secondary'
+    );
+    
+    // 6. Asegurar que se use colorScheme correctamente
+    content = content.replace(
+      /final\s+colorScheme\s*=\s*Theme\.of\(context\)\.colorScheme;/g,
+      'final colorScheme = Theme.of(context).colorScheme;'
+    );
+    
+    return content;
+  }
+
   private async getPackageName(projectDir: string): Promise<string> {
     const pubspecPath = path.join(projectDir, 'pubspec.yaml');
     
@@ -260,7 +416,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_riverpod: ^2.4.9
   go_router: ^13.0.0
   cupertino_icons: ^1.0.2
 
@@ -280,15 +435,10 @@ flutter:
 
   private async createMainFile(projectDir: string): Promise<void> {
     const mainContent = `import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 
 void main() {
-  runApp(
-    const ProviderScope(
-      child: MyApp(),
-    ),
-  );
+  runApp(const MyApp());
 }
 `;
     await fs.writeFile(path.join(projectDir, 'lib/main.dart'), mainContent);
@@ -317,48 +467,33 @@ void main() {
     const themeContent = `import 'package:flutter/material.dart';
 
 class AppTheme {
-  // Colores extraídos del mockup
-  static const Color primaryColor = Color(${colors.primary});
-  static const Color secondaryColor = Color(${colors.secondary});
-  static const Color accentColor = Color(${colors.accent});
-  
+  // ✅ Definir colores como constantes primero
+  static const Color colorSchemePrimary = Color(0xFF4CAF50); // Verde
+  static const Color secondaryBlue = Color(0xFF2196F3);
+  static const Color secondaryOrange = Color(0xFFFF9800);
+  static const Color secondaryPurple = Color(0xFF9C27B0);
+
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primaryColor,
+        seedColor: colorSchemePrimary,
         brightness: Brightness.light,
       ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent,
-        foregroundColor: primaryColor,
+      scaffoldBackgroundColor: Colors.white,
+      appBarTheme: const AppBarTheme(
         elevation: 0,
-        scrolledUnderElevation: 0,
         centerTitle: true,
       ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 0,
-        ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: colorSchemePrimary,
+        foregroundColor: Colors.white,
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryColor, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      ),
-      cardTheme: CardTheme(
-        elevation: 0,
+      cardTheme: const CardTheme(
+        elevation: 2,
+        margin: EdgeInsets.all(8),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
       ),
     );
@@ -420,7 +555,7 @@ Flutter application generated from Draw.io mockup.
 
 ## Architecture
 
-- **State Management**: Riverpod
+- **State Management**: Flutter built-in (StatefulWidget)
 - **Navigation**: GoRouter
 - **Design**: Material Design 3
 - **Structure**: Feature-based modules

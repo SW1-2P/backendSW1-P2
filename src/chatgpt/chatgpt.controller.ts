@@ -9,8 +9,8 @@ export class ChatgptController {
   constructor(private readonly chatgptService: ChatgptService) {}
 
   @Post('chat')
-  @ApiOperation({ summary: 'Genera respuestas usando GPT-4o para propósitos específicos' })
-  @ApiResponse({ status: 200, description: 'Respuesta generada con éxito usando GPT-4o' })
+  @ApiOperation({ summary: 'Genera respuestas usando o3 para propósitos específicos' })
+  @ApiResponse({ status: 200, description: 'Respuesta generada con éxito usando o3' })
   @ApiResponse({ status: 400, description: 'Solicitud inválida' })
   @ApiResponse({ status: 500, description: 'Error del servidor' })
   async chat(@Body() chatCompletionDto: ChatCompletionDto) {
@@ -21,7 +21,7 @@ export class ChatgptController {
     return {
       response: await this.chatgptService.chat(
         chatCompletionDto.messages,
-        chatCompletionDto.model || 'gpt-4o', // Por defecto GPT-4o
+        chatCompletionDto.model || 'o3', // Por defecto o3
         chatCompletionDto.temperature || 0.7
       )
     };

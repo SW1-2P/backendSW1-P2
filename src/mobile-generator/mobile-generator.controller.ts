@@ -7,21 +7,54 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 import { Usuario } from '../usuarios/entities/usuario.entity';
 import { CreateMobileAppDto } from './dto/create-mobile-app.dto';
 import { UpdateMobileAppDto } from './dto/update-mobile-app.dto';
+import { CreateFromPromptDto } from './dto/create-from-prompt.dto';
+import { AnalyzeImageDto } from './dto/analyze-image.dto';
+import { ImageAnalysisService } from './services/image-analysis.service';
 
 @ApiTags('Mobile Generator')
 @Controller('mobile-generator')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class MobileGeneratorController {
-  constructor(private readonly mobileGeneratorService: MobileGeneratorService) {}
+  constructor(
+    private readonly mobileGeneratorService: MobileGeneratorService,
+    private readonly imageAnalysisService: ImageAnalysisService
+  ) {}
 
   @Post()
-  @ApiOperation({ summary: 'Crear y almacenar una nueva aplicación móvil' })
+  @ApiOperation({ summary: 'Crear y almacenar una nueva aplicación móvil desde XML o mockup' })
   @ApiResponse({ status: 201, description: 'Aplicación móvil creada correctamente' })
   create(@Body() createMobileAppDto: CreateMobileAppDto, @GetUser() usuario: Usuario) {
     // Asegurar que el usuario actual sea el propietario
     createMobileAppDto.user_id = usuario.id;
     return this.mobileGeneratorService.create(createMobileAppDto);
+  }
+
+  @Post('from-prompt')
+  @ApiOperation({ summary: 'Crear aplicación móvil desde descripción de texto (con enriquecimiento automático)' })
+  @ApiResponse({ status: 201, description: 'Aplicación móvil creada desde prompt enriquecido' })
+  @ApiBody({
+    type: CreateFromPromptDto,
+    description: 'Datos para crear aplicación desde prompt',
+    examples: {
+      basico: {
+        summary: 'Prompt básico',
+        value: {
+          prompt: 'crea una app móvil de gestión contable'
+        }
+      },
+      detallado: {
+        summary: 'Prompt detallado',
+        value: {
+          prompt: 'crea una aplicación móvil de gestión contable con login, formularios de transacciones, reportes financieros, dashboard con gráficos y categorización de gastos',
+          nombre: 'ContaApp Pro',
+          project_type: 'flutter'
+        }
+      }
+    }
+  })
+  createFromPrompt(@Body() createFromPromptDto: CreateFromPromptDto, @GetUser() usuario: Usuario) {
+    return this.mobileGeneratorService.createFromPrompt(createFromPromptDto, usuario.id);
   }
 
   @Get()
@@ -121,5 +154,41 @@ export class MobileGeneratorController {
         statusCode: statusCode,
       });
     }
+  }
+
+  @Post('analyze-image')
+  @ApiOperation({ summary: 'Analizar imagen para generar descripción de aplicación móvil' })
+  @ApiResponse({ status: 200, description: 'Imagen analizada correctamente' })
+  @ApiResponse({ status: 400, description: 'Imagen no válida o error en el análisis' })
+  @ApiBody({
+    type: AnalyzeImageDto,
+    description: 'Imagen en base64 para analizar',
+    examples: {
+      ejemplo: {
+        summary: 'Análisis de imagen',
+        value: {
+          image: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...',
+          projectType: 'flutter'
+        }
+      }
+    }
+  })
+  async analyzeImage(@Body() analyzeImageDto: AnalyzeImageDto) {
+    // Validar imagen
+    const validation = this.imageAnalysisService.validateImageData(analyzeImageDto.image);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.error
+      };
+    }
+
+    // Analizar imagen
+    const result = await this.imageAnalysisService.analyzeImageForProject(
+      analyzeImageDto.image,
+      analyzeImageDto.projectType
+    );
+
+    return result;
   }
 } 
