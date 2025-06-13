@@ -5,6 +5,316 @@ import { GenerationContext } from '../interfaces/generator.interface';
 export class FlutterPromptService {
   private readonly logger = new Logger(FlutterPromptService.name);
 
+  /**
+   * Restricciones y reglas de código Flutter para evitar errores
+   */
+  private readonly FLUTTER_CODE_RESTRICTIONS = `
+RESTRICCIONES OBLIGATORIAS PARA CÓDIGO FLUTTER:
+
+🚫 ERRORES PROHIBIDOS:
+- NO usar Theme.of(context).colorSchemeSecondary (no existe)
+- NO declarar variables duplicadas como 'colorScheme'
+- NO importar packages no estándar como riverpod, provider, bloc sin especificación
+- NO usar getters que no existen en ThemeData
+- NO crear variables no utilizadas
+
+✅ REGLAS DE CÓDIGO LIMPIO:
+- Usar SOLO Theme.of(context).colorScheme.primary, secondary, etc.
+- Declarar variables únicas sin duplicados
+- Usar SOLO material.dart, widgets estándar de Flutter
+- Validar que todos los getters existan en la API de Flutter
+- Eliminar variables no usadas automáticamente
+
+📱 ESTRUCTURA OBLIGATORIA:
+- Material Design 3 estándar
+- GoRouter para navegación (sin packages adicionales)
+- Widgets nativos de Flutter únicamente
+- Variables con nombres únicos y descriptivos
+
+🎨 THEME CORRECTO:
+- colorScheme.primary (✅)
+- colorScheme.secondary (✅) 
+- colorScheme.surface (✅)
+- colorScheme.onSurface (✅)
+- NO colorSchemeSecondary (❌)
+- NO colorScheme duplicado (❌)
+
+💾 DEPENDENCIAS PERMITIDAS:
+SOLO estas dependencias estándar:
+dependencies:
+  flutter:
+    sdk: flutter
+  go_router: ^14.2.0
+  
+NO incluir: riverpod, provider, bloc, dio, http sin especificación explícita.
+  `;
+
+  /**
+   * Genera prompt optimizado para crear aplicación Flutter con restricciones
+   */
+  generatePromptForFlutterApp(input: {
+    appName: string;
+    description: string;
+    screens?: string[];
+    domain?: string;
+  }): string {
+    this.logger.debug(`🎯 Generando prompt Flutter con restricciones para: ${input.appName}`);
+
+    const basePrompt = `
+${this.FLUTTER_CODE_RESTRICTIONS}
+
+GENERAR APLICACIÓN FLUTTER COMPLETA:
+
+Nombre: ${input.appName}
+Descripción: ${input.description}
+Dominio: ${input.domain || 'General'}
+
+PANTALLAS REQUERIDAS:
+${input.screens?.map((screen, index) => `${index + 1}. ${screen}Screen`).join('\n') || '- HomeScreen\n- ProfileScreen\n- SettingsScreen'}
+
+ESTRUCTURA DE ARCHIVOS OBLIGATORIA:
+lib/
+├── main.dart (MaterialApp con GoRouter)
+├── core/
+│   ├── router/app_router.dart (GoRouter config)
+│   └── themes/app_theme.dart (Material 3 theme)
+├── features/
+│   ├── [feature]/screens/[screen]_screen.dart
+│   └── [feature]/widgets/[widget].dart
+└── shared/widgets/common_widgets.dart
+
+VALIDACIONES TÉCNICAS:
+✅ Verificar que NO existe colorSchemeSecondary
+✅ Verificar que NO hay variables duplicadas
+✅ Verificar que SOLO se usan dependencias permitidas
+✅ Verificar que todas las páginas tienen contenido específico
+✅ Verificar sintaxis correcta de Material Design 3
+
+GENERAR:
+1. Estructura completa de archivos
+2. Navegación funcional entre pantallas
+3. Tema Material Design 3 válido
+4. Widgets reutilizables sin errores
+5. Router con todas las rutas configuradas
+
+CADA PANTALLA DEBE:
+- Tener contenido específico y funcional
+- Usar AppBar con título descriptivo
+- Incluir navegación apropiada
+- Mostrar widgets relevantes al propósito
+- Seguir patrones de Material Design 3
+    `;
+
+    return basePrompt.trim();
+  }
+
+  /**
+   * Genera prompt específico para procesar mockups XML
+   */
+  generatePromptFromXML(xmlContent: string, appName: string): string {
+    this.logger.debug(`📱 Procesando XML mockup para app: ${appName}`);
+
+    // Analizar XML para extraer componentes
+    const extractedComponents = this.extractComponentsFromXML(xmlContent);
+    
+    const xmlPrompt = `
+${this.FLUTTER_CODE_RESTRICTIONS}
+
+ANALIZAR MOCKUP XML Y GENERAR FLUTTER APP:
+
+Aplicación: ${appName}
+XML Mockup Analizado:
+${xmlContent}
+
+COMPONENTES DETECTADOS:
+${extractedComponents.map(comp => `- ${comp.type}: ${comp.text || comp.description}`).join('\n')}
+
+PANTALLAS A GENERAR:
+${this.generateScreensFromComponents(extractedComponents)}
+
+CONVERSIÓN XML → FLUTTER:
+1. Analizar cada elemento del mockup
+2. Convertir a widgets Flutter equivalentes
+3. Mantener diseño y funcionalidad del mockup
+4. Crear navegación entre pantallas detectadas
+5. Implementar formularios y componentes interactivos
+
+MAPEO DE COMPONENTES:
+- Botones XML → ElevatedButton/OutlinedButton
+- Campos de texto → TextFormField
+- Listas → ListView/Column
+- Tarjetas → Card widgets
+- Navegación → AppBar + Drawer/BottomNavigationBar
+
+RESULTADO ESPERADO:
+- App Flutter funcional basada en el mockup
+- Navegación completa entre pantallas
+- Formularios interactivos
+- Diseño fiel al mockup original
+- Código sin errores de compilación
+
+IMPORTANTE: Cada pantalla debe tener contenido real, no placeholders.
+    `;
+
+    return xmlPrompt.trim();
+  }
+
+  /**
+   * Extrae componentes del XML mockup
+   */
+  private extractComponentsFromXML(xmlContent: string): any[] {
+    const components: any[] = [];
+    
+    try {
+      // Buscar elementos comunes en el XML
+      const textMatches = xmlContent.match(/value="([^"]+)"/g) || [];
+      const styleMatches = xmlContent.match(/style="([^"]+)"/g) || [];
+      
+      textMatches.forEach(match => {
+        const text = match.replace('value="', '').replace('"', '');
+        if (text.length > 1 && !text.includes('mxgraph')) {
+          components.push({
+            type: this.determineComponentType(text),
+            text: text,
+            description: `Componente con texto: ${text}`
+          });
+        }
+      });
+
+      // Detectar tipos de componentes por estilo
+      if (xmlContent.includes('fillColor')) {
+        components.push({
+          type: 'form',
+          description: 'Formulario detectado'
+        });
+      }
+
+      if (xmlContent.includes('button') || xmlContent.includes('rounded')) {
+        components.push({
+          type: 'button',
+          description: 'Botones detectados'
+        });
+      }
+
+      if (xmlContent.includes('strokeColor')) {
+        components.push({
+          type: 'input',
+          description: 'Campos de entrada detectados'
+        });
+      }
+
+    } catch (error) {
+      this.logger.error('Error parsing XML mockup:', error);
+      // Fallback: generar componentes básicos
+      components.push(
+        { type: 'screen', description: 'Pantalla principal' },
+        { type: 'form', description: 'Formulario' },
+        { type: 'button', description: 'Botones de acción' }
+      );
+    }
+
+    return components.length > 0 ? components : [
+      { type: 'home', description: 'Pantalla de inicio' },
+      { type: 'detail', description: 'Pantalla de detalles' },
+      { type: 'settings', description: 'Configuraciones' }
+    ];
+  }
+
+  /**
+   * Determina el tipo de componente basado en el texto
+   */
+  private determineComponentType(text: string): string {
+    const lowerText = text.toLowerCase();
+    
+    if (lowerText.includes('dashboard') || lowerText.includes('home')) {
+      return 'home';
+    }
+    if (lowerText.includes('create') || lowerText.includes('add')) {
+      return 'create';
+    }
+    if (lowerText.includes('project') || lowerText.includes('item')) {
+      return 'project';
+    }
+    if (lowerText.includes('publish') || lowerText.includes('save')) {
+      return 'button';
+    }
+    if (lowerText.includes('permission') || lowerText.includes('setting')) {
+      return 'settings';
+    }
+    if (lowerText.includes('description') || lowerText.includes('text')) {
+      return 'input';
+    }
+    
+    return 'component';
+  }
+
+  /**
+   * Genera lista de pantallas basada en componentes detectados
+   */
+  private generateScreensFromComponents(components: any[]): string {
+    const screens = new Set<string>();
+    
+    components.forEach(comp => {
+      switch (comp.type) {
+        case 'home':
+          screens.add('HomeScreen - Dashboard principal');
+          break;
+        case 'create':
+          screens.add('CreateProjectScreen - Crear nuevo proyecto');
+          break;
+        case 'project':
+          screens.add('ProjectDetailScreen - Detalles del proyecto');
+          break;
+        case 'settings':
+          screens.add('SettingsScreen - Configuraciones y permisos');
+          break;
+        case 'form':
+          screens.add('FormScreen - Formulario de entrada');
+          break;
+        default:
+          screens.add('DetailScreen - Pantalla de detalles');
+      }
+    });
+
+    // Asegurar mínimo de pantallas
+    if (screens.size < 3) {
+      screens.add('HomeScreen - Pantalla principal');
+      screens.add('DetailScreen - Pantalla de detalles');
+      screens.add('ProfileScreen - Perfil de usuario');
+    }
+
+    return Array.from(screens).join('\n');
+  }
+
+  /**
+   * Valida que el prompt generado cumple las restricciones
+   */
+  validateFlutterPrompt(prompt: string): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    
+    // Verificar restricciones
+    if (prompt.includes('colorSchemeSecondary')) {
+      errors.push('Uso prohibido de colorSchemeSecondary');
+    }
+    
+    if (prompt.includes('riverpod') && !prompt.includes('PERMITIR riverpod')) {
+      errors.push('Dependencia riverpod no permitida sin especificación');
+    }
+    
+    if (!prompt.includes('Material Design 3')) {
+      errors.push('Debe especificar Material Design 3');
+    }
+
+    if (!prompt.includes('GoRouter')) {
+      errors.push('Debe usar GoRouter para navegación');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
   createSystemPrompt(): string {
     return `Eres un experto desarrollador Flutter que genera aplicaciones modernas desde mockups XML de Draw.io.
 
@@ -599,45 +909,6 @@ Genera EXACTAMENTE los archivos necesarios para implementar SOLO lo que el usuar
   }
 
   /**
-   * Extrae funcionalidades específicas del prompt enriquecido
-   */
-  private extractFunctionalities(prompt: string): string {
-    const functionalities: string[] = [];
-    
-    // Buscar secciones de funcionalidades
-    const baseFunctionalitiesMatch = prompt.match(/FUNCIONALIDADES BASE[^:]*:([\s\S]*?)(?=FUNCIONALIDADES ESPECÍFICAS|PANTALLAS|$)/i);
-    const specificFunctionalitiesMatch = prompt.match(/FUNCIONALIDADES ESPECÍFICAS[^:]*:([\s\S]*?)(?=PANTALLAS|$)/i);
-    
-    if (baseFunctionalitiesMatch) {
-      const baseItems = baseFunctionalitiesMatch[1]
-        .split('-')
-        .map(item => item.trim())
-        .filter(item => item.length > 10)
-        .slice(0, 8);
-      
-      if (baseItems.length > 0) {
-        functionalities.push('📋 FUNCIONALIDADES BASE:');
-        baseItems.forEach(item => functionalities.push(`   • ${item}`));
-      }
-    }
-    
-    if (specificFunctionalitiesMatch) {
-      const specificItems = specificFunctionalitiesMatch[1]
-        .split('-')
-        .map(item => item.trim())
-        .filter(item => item.length > 10)
-        .slice(0, 8);
-      
-      if (specificItems.length > 0) {
-        functionalities.push('🎯 FUNCIONALIDADES ESPECÍFICAS:');
-        specificItems.forEach(item => functionalities.push(`   • ${item}`));
-      }
-    }
-    
-    return functionalities.length > 0 ? functionalities.join('\n') : 'Funcionalidades básicas de aplicación móvil';
-  }
-
-  /**
    * Extrae EXACTAMENTE las funcionalidades solicitadas por el usuario
    */
   private extractRequestedFeatures(prompt: string): string {
@@ -692,8 +963,41 @@ Genera EXACTAMENTE los archivos necesarios para implementar SOLO lo que el usuar
    * Extrae EXACTAMENTE las pantallas solicitadas por el usuario
    */
   private extractExactScreensRequested(prompt: string): string[] {
-    const lowerPrompt = prompt.toLowerCase();
     const screens: string[] = [];
+    
+    // NUEVO: Buscar páginas en formato estructurado del prompt enriquecido
+    const structuredPagesMatch = prompt.match(/PÁGINAS PRINCIPALES OBLIGATORIAS[^:]*:([\s\S]*?)(?=FUNCIONALIDADES|PANTALLAS MÍNIMAS|$)/i);
+    
+    if (structuredPagesMatch) {
+      const pageLines = structuredPagesMatch[1]
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.match(/^\d+\.\s*\w+Screen:/));
+      
+      if (pageLines.length > 0) {
+        this.logger.debug(`🎯 Páginas estructuradas encontradas: ${pageLines.length}`);
+        pageLines.forEach(line => {
+          // Extraer el nombre de la pantalla y descripción
+          const match = line.match(/^\d+\.\s*(\w+Screen):\s*(.+)$/);
+          if (match) {
+            const screenName = match[1];
+            const description = match[2];
+            screens.push(`📱 ${screenName} - ${description}`);
+            this.logger.debug(`   • ${screenName}: ${description}`);
+          }
+        });
+        
+        // Si encontramos páginas estructuradas, retornar esas SOLAMENTE
+        if (screens.length > 0) {
+          this.logger.debug(`✅ Usando ${screens.length} páginas del prompt enriquecido`);
+          return screens;
+        }
+      }
+    }
+    
+    // FALLBACK: Detección básica si no hay páginas estructuradas
+    this.logger.debug('🔄 Usando detección básica de páginas (fallback)');
+    const lowerPrompt = prompt.toLowerCase();
     
     // Detectar pantallas específicas mencionadas
     if (lowerPrompt.includes('login') || lowerPrompt.includes('iniciar sesion')) {
@@ -732,39 +1036,10 @@ Genera EXACTAMENTE los archivos necesarios para implementar SOLO lo que el usuar
     // Si no se detectan pantallas específicas, usar pantallas básicas
     if (screens.length === 0) {
       screens.push('📱 HomeScreen - Pantalla principal');
+      this.logger.debug('🔄 Usando pantalla básica como fallback');
     }
     
     return screens;
-  }
-
-  /**
-   * Extrae pantallas requeridas del prompt enriquecido (método legacy)
-   */
-  private extractRequiredScreens(prompt: string): string {
-    const screens: string[] = [];
-    
-    // Buscar sección de pantallas
-    const screensMatch = prompt.match(/PANTALLAS[^:]*:([\s\S]*?)(?=IMPORTANTE|Este prompt|$)/i);
-    
-    if (screensMatch) {
-      const screenItems = screensMatch[1]
-        .split('-')
-        .map(item => item.trim())
-        .filter(item => item.length > 5 && item.toLowerCase().includes('pantalla'))
-        .slice(0, 12);
-      
-      if (screenItems.length > 0) {
-        screens.push('📱 PANTALLAS ESPECÍFICAS A IMPLEMENTAR:');
-        screenItems.forEach((item, index) => {
-          const cleanItem = item.replace(/^pantalla\s+de\s*/i, '').trim();
-          screens.push(`   ${index + 1}. ${cleanItem}`);
-        });
-        
-        screens.push('\n🗂️ NAVIGATION DRAWER DEBE INCLUIR TODAS ESTAS PANTALLAS');
-      }
-    }
-    
-    return screens.length > 0 ? screens.join('\n') : 'Pantallas básicas: Login, Dashboard, Perfil, Configuraciones';
   }
 
   /**

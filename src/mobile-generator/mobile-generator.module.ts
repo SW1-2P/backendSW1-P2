@@ -33,6 +33,7 @@ import { ImageAnalysisService } from './services/image-analysis.service';
   exports: [
     MobileGeneratorService,
     GeneratorFactory,
+    ImageAnalysisService,
   ],
 })
 export class MobileGeneratorModule {} 
