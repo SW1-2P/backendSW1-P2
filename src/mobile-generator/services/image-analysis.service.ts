@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ChatgptService } from '../../chatgpt/chatgpt.service';
 import { ProjectType } from '../entities/mobile-app.entity';
+import { PromptEnrichmentService } from './prompt-enrichment.service';
 
 export interface ImageAnalysisResult {
   success: boolean;
@@ -8,11 +9,118 @@ export interface ImageAnalysisResult {
   error?: string;
 }
 
+export interface GeneralAppResult {
+  success: boolean;
+  enrichedPrompt: string;
+  detectedDomain: string;
+  generatedPages: string[];
+  error?: string;
+}
+
 @Injectable()
 export class ImageAnalysisService {
   private readonly logger = new Logger(ImageAnalysisService.name);
 
-  constructor(private readonly chatGptService: ChatgptService) {}
+  constructor(
+    private readonly chatGptService: ChatgptService,
+    private readonly promptEnrichmentService: PromptEnrichmentService
+  ) {}
+
+  /**
+   * Crea una app móvil de manera GENERAL - Automática con generación inteligente de páginas
+   */
+  async createGeneralApp(
+    prompt: string,
+    projectType: ProjectType = ProjectType.FLUTTER
+  ): Promise<GeneralAppResult> {
+    try {
+      this.logger.debug(`🚀 Creando app general con prompt: "${prompt}"`);
+
+      // 1. ENRIQUECER EL PROMPT automáticamente
+      const enrichedPrompt = await this.promptEnrichmentService.enrichPrompt(prompt);
+      
+      this.logger.debug(`✅ Prompt enriquecido (${enrichedPrompt.length} caracteres)`);
+
+      // 2. DETECTAR DOMINIO específico
+      const detectedDomain = this.extractDomainFromEnrichedPrompt(enrichedPrompt);
+      
+      // 3. EXTRAER PÁGINAS generadas automáticamente
+      const generatedPages = this.extractPagesFromEnrichedPrompt(enrichedPrompt);
+
+      this.logger.debug(`🎯 Dominio detectado: ${detectedDomain}`);
+      this.logger.debug(`📱 Páginas generadas: ${generatedPages.length}`);
+
+      return {
+        success: true,
+        enrichedPrompt,
+        detectedDomain,
+        generatedPages
+      };
+
+    } catch (error) {
+      this.logger.error(`❌ Error creando app general: ${error.message}`);
+      return {
+        success: false,
+        enrichedPrompt: '',
+        detectedDomain: 'error',
+        generatedPages: [],
+        error: error.message || 'Error desconocido creando app general'
+      };
+    }
+  }
+
+  /**
+   * Extrae el dominio detectado del prompt enriquecido
+   */
+  private extractDomainFromEnrichedPrompt(enrichedPrompt: string): string {
+    // Buscar líneas que indican el dominio detectado
+    const domainMatch = enrichedPrompt.match(/DOMINIO ESPECÍFICO DETECTADO:\s*([^\n]+)/i);
+    if (domainMatch) {
+      return domainMatch[1].trim();
+    }
+
+    // Buscar patrones alternativos
+    const altDomainMatch = enrichedPrompt.match(/(?:FITNESS|EDUCACIÓN|DELIVERY|FINANZAS|ECOMMERCE|SALUD|SOCIAL)\/\w+/i);
+    if (altDomainMatch) {
+      return altDomainMatch[0];
+    }
+
+    return 'Aplicación General';
+  }
+
+  /**
+   * Extrae las páginas específicas del prompt enriquecido
+   */
+  private extractPagesFromEnrichedPrompt(enrichedPrompt: string): string[] {
+    const pages: string[] = [];
+
+    // Buscar páginas en formato estructurado
+    const pageLines = enrichedPrompt
+      .split('\n')
+      .filter(line => line.match(/^\d+\.\s*\w+Screen:/));
+
+    pageLines.forEach(line => {
+      const match = line.match(/^\d+\.\s*(\w+Screen):\s*(.+)$/);
+      if (match) {
+        const screenName = match[1];
+        const description = match[2];
+        pages.push(`${screenName}: ${description}`);
+      }
+    });
+
+    // Si no se encontraron páginas estructuradas, buscar páginas base
+    if (pages.length === 0) {
+      const basePages = [
+        'LoginScreen: Pantalla de inicio de sesión',
+        'RegisterScreen: Pantalla de registro',
+        'HomeScreen: Pantalla principal',
+        'ProfileScreen: Pantalla de perfil'
+      ];
+      pages.push(...basePages);
+    }
+
+    return pages;
+  }
 
   /**
    * Analiza una imagen y genera una descripción detallada para crear una aplicación móvil

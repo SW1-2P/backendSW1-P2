@@ -2,15 +2,23 @@ import { IsString, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { ProjectType } from '../entities/mobile-app.entity';
 
-export class AnalyzeImageDto {
+export class CreateGeneralAppDto {
   @ApiProperty({
-    description: 'Imagen en formato base64',
-    example: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...',
-    required: false
+    description: 'Prompt simple para generar la aplicación automáticamente',
+    example: 'una app educativa',
+    examples: [
+      'una app de gimnasio',
+      'app de delivery de comida', 
+      'aplicación educativa',
+      'app de finanzas personales',
+      'red social simple',
+      'app médica',
+      'tienda online'
+    ]
   })
   @IsString()
   @IsNotEmpty()
-  image: string;
+  prompt: string;
 
   @ApiProperty({
     description: 'Tipo de proyecto a generar',

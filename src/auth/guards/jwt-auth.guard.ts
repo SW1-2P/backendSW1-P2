@@ -10,6 +10,17 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
+    // Verificar si el endpoint está marcado como público
+    const isPublic = this.reflector.getAllAndOverride<boolean>('isPublic', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      console.log('JWT Auth Guard - Endpoint público detectado, permitiendo acceso sin autenticación');
+      return true;
+    }
+
     return super.canActivate(context);
   }
 

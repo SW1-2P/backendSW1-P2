@@ -10,6 +10,7 @@ import { CreateFromPromptDto } from './dto/create-from-prompt.dto';
 import { GeneratorFactory } from './generators/generator.factory';
 import { MockupIntegrationService } from './services/mockup-integration.service';
 import { PromptEnrichmentService } from './services/prompt-enrichment.service';
+import { FlutterPromptService } from './services/flutter-prompt.service';
 import { GenerationContext } from './interfaces/generator.interface';
 
 @Injectable()
@@ -22,6 +23,7 @@ export class MobileGeneratorService {
     private readonly generatorFactory: GeneratorFactory,
     private readonly mockupService: MockupIntegrationService,
     private readonly promptEnrichmentService: PromptEnrichmentService,
+    private readonly flutterPromptService: FlutterPromptService,
   ) {}
 
   // CRUD Operations

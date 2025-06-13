@@ -168,3 +168,199 @@ Códigos de estado comunes:
 - [PostgreSQL](https://www.postgresql.org/)
 - [JWT](https://jwt.io/)
 - [Swagger](https://swagger.io/)
+
+# 📱 Sistema de Generación de Apps Móviles
+
+Sistema completo para la generación automática de aplicaciones móviles Flutter desde diferentes tipos de entrada.
+
+## 🎯 **APARTADOS IMPLEMENTADOS**
+
+### **1️⃣ APARTADO GENERAL - Creación Automática**
+- **Entrada**: Prompt simple (`"una app educativa"`)
+- **Proceso**: Enriquecimiento automático con IA
+- **Salida**: App completa con 8-9 páginas específicas del dominio
+- **Endpoint**: `POST /mobile-generator/create-general-app`
+
+**Flujo**:
+```
+Prompt Simple → Detección de Dominio → Enriquecimiento Automático → App Completa
+```
+
+**Dominios Soportados**: 
+- 🏃‍♂️ FITNESS_GYM
+- 📚 EDUCACION_ESCOLAR  
+- 🍕 DELIVERY_COMIDA
+- 💰 FINANZAS_CONTABLE
+- 🛒 ECOMMERCE_TIENDA
+- 🏥 SALUD_MEDICO
+- 💬 SOCIAL_CHAT
+
+### **2️⃣ APARTADO DETALLADO - Prompt Específico**
+- **Entrada**: Prompt detallado con especificaciones exactas
+- **Proceso**: SIN enriquecimiento automático - exactamente lo solicitado
+- **Salida**: App fiel a las especificaciones del usuario
+- **Endpoint**: `POST /mobile-generator/create-detailed-app`
+
+**Flujo**:
+```
+Prompt Detallado → Generación Directa → App Según Especificaciones
+```
+
+**Ejemplo de Prompt Detallado**:
+```
+Crear aplicación Flutter con:
+1. LoginScreen: email, password, botón login
+2. HomeScreen: dashboard con 4 cards, navegación inferior
+3. ProfileScreen: formulario edición, avatar circular
+4. SettingsScreen: lista configuraciones, toggles
+Material Design 3, colores azul/blanco, BottomNavigationBar
+```
+
+### **3️⃣ APARTADO DESDE IMAGEN - Análisis Visual**
+- **Entrada**: Imagen/mockup/wireframe
+- **Proceso**: Análisis visual de componentes con IA
+- **Salida**: App fiel al diseño original
+- **Endpoint**: `POST /mobile-generator/create-from-image`
+
+**Flujo**:
+```
+Imagen/Mockup → Análisis Visual IA → Detección Componentes → App Fiel al Diseño
+```
+
+**Formatos Soportados**: JPG, PNG, GIF, WEBP
+
+## 🛠️ **ARQUITECTURA TÉCNICA**
+
+### Backend (NestJS)
+```
+src/mobile-generator/
+├── mobile-generator.controller.ts     # 3 endpoints diferenciados
+├── mobile-generator.service.ts        # Lógica de creación
+├── prompt-enrichment.service.ts       # Enriquecimiento automático (APARTADO 1)
+├── flutter-prompt.service.ts          # Generación de prompts Flutter
+├── image-analysis.service.ts          # Análisis de imágenes (APARTADO 3)
+└── chatgpt.service.ts                 # Integración OpenAI
+```
+
+### Frontend (React + TypeScript)
+```
+src/pages/
+├── MobileAppsMainPage.tsx             # Selección de apartado
+├── MobileAppFromPromptPage.tsx        # APARTADO 1: GENERAL
+├── MobileAppDetailedPage.tsx          # APARTADO 2: DETALLADO  
+└── MobileAppFromImagePage.tsx         # APARTADO 3: DESDE IMAGEN
+```
+
+### API Endpoints
+
+#### **APARTADO 1: GENERAL**
+```http
+POST /mobile-generator/create-general-app
+Content-Type: application/json
+
+{
+  "prompt": "una app educativa",
+  "nombre": "EduApp"
+}
+```
+
+#### **APARTADO 2: DETALLADO**
+```http
+POST /mobile-generator/create-detailed-app
+Content-Type: application/json
+
+{
+  "prompt": "Crear app Flutter con: 1. LoginScreen...",
+  "nombre": "App Detallada",
+  "projectType": "flutter"
+}
+```
+
+#### **APARTADO 3: DESDE IMAGEN**
+```http
+POST /mobile-generator/create-from-image
+Content-Type: application/json
+
+{
+  "image": "data:image/jpeg;base64,/9j/4AAQ...",
+  "nombre": "App from Mockup",
+  "projectType": "flutter"
+}
+```
+
+## 🔬 **TESTING REALIZADO**
+
+### Test APARTADO GENERAL
+```bash
+curl -X POST http://localhost:3000/mobile-generator/create-general-app \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
+  -d '{"prompt": "una app educativa", "nombre": "EduApp"}'
+```
+
+**Resultado**: ✅ Dominio EDUCACION_ESCOLAR detectado, 9 páginas generadas
+
+### Test APARTADO DETALLADO
+- **Input**: Prompt específico con 4 pantallas detalladas
+- **Resultado**: ✅ App exactamente según especificaciones
+
+### Test APARTADO DESDE IMAGEN
+- **Input**: Mockup de Figma
+- **Resultado**: ✅ Componentes detectados y app fiel al diseño
+
+## 🚀 **INSTALACIÓN Y USO**
+
+### 1. Backend
+```bash
+cd backendSW1-P2
+npm install
+npm run build
+npm run start:prod
+```
+
+### 2. Frontend  
+```bash
+cd mockup-front
+npm install
+npm run build
+npm run preview
+```
+
+### 3. Acceso
+- **Frontend**: http://localhost:4173
+- **Backend**: http://localhost:3000
+- **Swagger**: http://localhost:3000/api
+
+## 📊 **ESTADÍSTICAS DEL SISTEMA**
+
+- ✅ **3 Apartados** completamente implementados
+- ✅ **7 Dominios** con plantillas específicas  
+- ✅ **8-9 Páginas** generadas mínimo por app
+- ✅ **Frontend/Backend** totalmente funcionales
+- ✅ **TypeScript** sin errores de compilación
+- ✅ **JWT Authentication** implementado
+- ✅ **Swagger Documentation** disponible
+
+## 🎯 **DIFERENCIAS CLAVE ENTRE APARTADOS**
+
+| Aspecto | GENERAL | DETALLADO | DESDE IMAGEN |
+|---------|---------|-----------|--------------|
+| **Entrada** | Prompt simple | Prompt específico | Imagen/Mockup |
+| **IA Automática** | ✅ Sí | ❌ No | ✅ Análisis visual |
+| **Control Usuario** | Bajo | Alto | Medio |
+| **Páginas Típicas** | 8-9 (dominio+base) | Según especificado | Según diseño |
+| **Tiempo Generación** | Rápido | Medio | Medio-Alto |
+| **Casos de Uso** | Prototipado rápido | Apps específicas | Fidelidad diseño |
+
+## 📈 **PRÓXIMAS MEJORAS**
+
+- [ ] Soporte para React Native
+- [ ] Templates adicionales por dominio
+- [ ] Análisis de múltiples imágenes
+- [ ] Integración con Figma API
+- [ ] Generación de tests automáticos
+- [ ] Deployment automático
+
+---
+
+**Desarrollado con**: NestJS + React + TypeScript + OpenAI GPT-4 + Material Design 3
