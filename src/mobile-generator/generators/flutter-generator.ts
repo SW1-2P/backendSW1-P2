@@ -7,14 +7,14 @@ import { ChatgptService } from '../../chatgpt/chatgpt.service';
 import { FLUTTER_WIDGETS } from './flutter-widgets';
 import { GO_ROUTER_TEMPLATE, MATERIAL_APP_TEMPLATE } from '../templates/go-router.template';
 import { FlutterPromptService } from '../services/flutter-prompt.service';
-import { FlutterScreenDetectorService } from '../services/flutter-screen-detector.service';
+// import { FlutterScreenDetectorService } from '../services/flutter-screen-detector.service';
 
 @Injectable()
 export class FlutterGenerator extends BaseGenerator {
   constructor(
     private readonly chatgptService: ChatgptService,
     private readonly promptService: FlutterPromptService,
-    private readonly screenDetector: FlutterScreenDetectorService,
+    // private readonly screenDetector: FlutterScreenDetectorService,
   ) {
     super();
   }
@@ -72,32 +72,26 @@ export class FlutterGenerator extends BaseGenerator {
 
   private async generateWithAI(context: GenerationContext): Promise<string> {
     if (!process.env.OPENAI_API_KEY) {
-      this.logger.warn(`⚠️ Sin API key de OpenAI - generando código con plantillas locales`);
-      return this.generateWithLocalTemplates(context);
+      this.logger.error(`❌ Sin API key de OpenAI - no se puede generar código`);
+      throw new Error('Se requiere OPENAI_API_KEY para generar código Flutter');
     }
     
     try {
-      this.logger.debug(`📤 Generando código Flutter con información completa del XML...`);
+      this.logger.debug(`📤 Generando código Flutter con XML completo para análisis de IA...`);
       
-      // DETECTAR PANTALLAS DEL XML
+      // NO USAR SCREEN DETECTION - DEJAR QUE LA IA INTERPRETE TODO EL XML
       let screenDetection: any = null;
       if (context.xml) {
-        screenDetection = this.screenDetector.detectScreens(context.xml);
-        this.logger.debug(`🔍 Pantallas detectadas del XML:`, {
-          phoneCount: screenDetection.phoneCount,
-          shouldCreateDrawer: screenDetection.shouldCreateDrawer,
-          screenSections: screenDetection.screenSections.length,
-          screens: screenDetection.detectedScreens,
-          sections: screenDetection.screenSections.map(s => ({ title: s.title, texts: s.texts.length }))
-        });
+        this.logger.debug(`📋 Enviando XML completo (${context.xml.length} chars) para interpretación directa de IA`);
+        this.logger.debug(`🤖 La IA analizará TODOS los elementos del XML sin procesamiento previo`);
       }
       
-      // USAR EL SERVICIO DE PROMPT ESPECIALIZADO
+      // USAR EL SERVICIO DE PROMPT ESPECIALIZADO (sin screen detection)
       const systemPrompt = this.promptService.createSystemPrompt();
-      const userPrompt = this.promptService.createUserPrompt(context, screenDetection);
+      const userPrompt = this.promptService.createUserPrompt(context, null); // null = no screen detection
       
       this.logger.debug(`📋 Prompts generados - System: ${systemPrompt.length} chars, User: ${userPrompt.length} chars`);
-      this.logger.debug(`📱 Enviando prompts especializados con pantallas detectadas`);
+      this.logger.debug(`📱 Enviando XML completo para análisis e interpretación directa de IA`);
       
       const generatedCode = await this.chatgptService.generateFlutterCode(systemPrompt, userPrompt);
       
@@ -105,952 +99,26 @@ export class FlutterGenerator extends BaseGenerator {
       this.logger.debug(`📋 Primer fragmento del código: "${generatedCode.substring(0, 500)}..."`);
       
       // Verificar que el código contiene archivos en formato esperado
-      if (generatedCode.length < 100 || !generatedCode.includes('[FILE:')) {
-        this.logger.warn(`⚠️ Código generado insuficiente o formato incorrecto - usando plantillas locales`);
-        return this.generateWithLocalTemplates(context);
-      }
-      
-      return generatedCode;
-    } catch (error) {
-      this.logger.error(`❌ Error con OpenAI: ${error.message}`);
-      this.logger.warn(`⚠️ Fallback a plantillas locales`);
-      return this.generateWithLocalTemplates(context);
-    }
-  }
-
-  private generateWithLocalTemplates(context: GenerationContext): string {
-    this.logger.debug('🏠 Generando código Flutter con plantillas locales basado en interpretación de IA...');
-    
-    // DETECTAR PANTALLAS DEL XML TAMBIÉN EN EL FALLBACK
-    let screenDetection: any = null;
-    let detectedPages: string[] = [];
-    
-    if (context.xml) {
-      screenDetection = this.screenDetector.detectScreens(context.xml);
-      if (screenDetection) {
-        this.logger.debug(`🔍 Fallback - Pantallas detectadas del XML:`, {
-          phoneCount: screenDetection.phoneCount,
-          screenSections: screenDetection.screenSections.length,
-          screens: screenDetection.detectedScreens
-        });
-      }
-      
-      // Usar las pantallas detectadas del XML
-      detectedPages = (screenDetection && screenDetection.detectedScreens.length > 0) 
-        ? screenDetection.detectedScreens 
-        : ['HomeScreen', 'ProfileScreen', 'SettingsScreen'];
-    } else {
-      // NO aplicar detección hardcodeada - usar prompt interpretado por IA
-      const interpretedPrompt = context.prompt || '';
-      
-      // Crear una app básica que será funcional sin tipos predefinidos
-      detectedPages = ['HomeScreen', 'FormScreen', 'DetailScreen', 'ProfileScreen', 'SettingsScreen'];
-      
-      this.logger.debug(`📱 Generando app básica desde interpretación de IA`);
-      this.logger.debug(`📋 Prompt interpretado: ${interpretedPrompt.substring(0, 200)}...`);
-    }
-    
-    return this.generateFlutterCodeFromPages(detectedPages, 'generic', screenDetection);
-  }
-
-  private generateFlutterCodeFromPages(pages: string[], appType: string, screenDetection?: any): string {
-    // Detectar si necesitamos drawer (más de 2 pantallas)
-    const shouldCreateDrawer = pages.length > 2;
-    
-    // Generar código básico con las páginas especificadas
-    const routes = pages.map((page, index) => {
-      const routeName = page.replace('Screen', '').toLowerCase();
-      return `      GoRoute(
-        path: '/${routeName}',
-        name: '${routeName}',
-        builder: (context, state) => const ${page}(),
-      ),`;
-    }).join('\n');
-
-    const imports = pages.map(page => 
-      `import '../../features/${page.replace('Screen', '').toLowerCase()}/screens/${page.replace('Screen', '').toLowerCase()}_screen.dart';`
-    ).join('\n');
-
-    const drawerImport = shouldCreateDrawer ? `import '../shared/widgets/app_drawer.dart';` : '';
-
-    const screenFiles = pages.map(page => {
-      const fileName = `lib/features/${page.replace('Screen', '').toLowerCase()}/screens/${page.replace('Screen', '').toLowerCase()}_screen.dart`;
-      const className = page;
-      const drawerImportForScreen = shouldCreateDrawer ? `import '../../../shared/widgets/app_drawer.dart';` : '';
-      const drawerProperty = shouldCreateDrawer ? `      drawer: const AppDrawer(),` : '';
-      const screenIcon = this.getIconForPage(page.replace('Screen', '').toLowerCase(), appType);
-      const screenContent = this.generateScreenContent(page, appType, screenDetection);
-      
-      return `[FILE: ${fileName}]
-\`\`\`dart
-import 'package:flutter/material.dart';
-${drawerImportForScreen}
-
-class ${className} extends StatefulWidget {
-  const ${className}({Key? key}) : super(key: key);
-
-  @override
-  State<${className}> createState() => _${className}State();
-}
-
-class _${className}State extends State<${className}> {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${page.replace('Screen', '')}'),
-      ),
-${drawerProperty}
-      body: ${screenContent}
-    );
-  }
-}
-\`\`\`
-`;
-    }).join('\n\n');
-
-    // Generar AppDrawer si es necesario
-    const drawerFile = shouldCreateDrawer ? this.generateAppDrawerCode(pages, appType) : '';
-
-    return `[FILE: pubspec.yaml]
-\`\`\`yaml
-name: flutter_app
-description: Generated Flutter application
-version: 1.0.0+1
-
-environment:
-  sdk: '>=3.0.0 <4.0.0'
-
-dependencies:
-  flutter:
-    sdk: flutter
-  go_router: ^13.0.0
-  cupertino_icons: ^1.0.2
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.0
-
-flutter:
-  uses-material-design: true
-\`\`\`
-
-[FILE: lib/main.dart]
-\`\`\`dart
-import 'package:flutter/material.dart';
-import 'app.dart';
-
-void main() {
-  runApp(const MyApp());
-}
-\`\`\`
-
-[FILE: lib/app.dart]
-\`\`\`dart
-import 'package:flutter/material.dart';
-import 'core/router/app_router.dart';
-import 'core/themes/app_theme.dart';
-
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Flutter App',
-      theme: AppTheme.lightTheme,
-      routerConfig: AppRouter().router,
-      debugShowCheckedModeBanner: false,
-    );
-  }
-}
-\`\`\`
-
-[FILE: lib/core/router/app_router.dart]
-\`\`\`dart
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-${imports}
-${drawerImport}
-
-class AppRouter {
-  static final _instance = AppRouter._internal();
-  factory AppRouter() => _instance;
-  AppRouter._internal();
-
-  GoRouter get router => _router;
-
-  static final GoRouter _router = GoRouter(
-    initialLocation: '/${pages[0].replace('Screen', '').toLowerCase()}',
-    routes: [
-${routes}
-    ],
-  );
-}
-\`\`\`
-
-[FILE: lib/core/themes/app_theme.dart]
-\`\`\`dart
-import 'package:flutter/material.dart';
-
-class AppTheme {
-  static ThemeData get lightTheme {
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-    );
-  }
-}
-\`\`\`
-
-${screenFiles}${drawerFile}`;
-  }
-
-  /**
-   * Genera el código del AppDrawer para navegación
-   */
-  private generateAppDrawerCode(pages: string[], appType: string = 'generic'): string {
-    const drawerItems = pages.map(page => {
-      const routeName = page.replace('Screen', '').toLowerCase();
-      const icon = this.getIconForPage(routeName, appType);
-      const title = page.replace('Screen', '');
-      
-      return `        _buildNavigationTile(
-          context,
-          icon: ${icon},
-          title: '${title}',
-          route: '/${routeName}',
-          isSelected: GoRouterState.of(context).fullPath == '/${routeName}',
-        ),`;
-    }).join('\n');
-
-    const { headerIcon, headerTitle } = this.getAppHeaderInfo(appType);
-
-    return `
-
-[FILE: lib/shared/widgets/app_drawer.dart]
-\`\`\`dart
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
-class AppDrawer extends StatelessWidget {
-  const AppDrawer({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return NavigationDrawer(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      children: [
-        DrawerHeader(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                ${headerIcon},
-                size: 48,
-                color: Theme.of(context).colorScheme.onPrimary,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '${headerTitle}',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-${drawerItems}
-        const Divider(),
-        _buildNavigationTile(
-          context,
-          icon: Icons.info_outline,
-          title: 'About',
-          route: '/about',
-          isSelected: GoRouterState.of(context).fullPath == '/about',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNavigationTile(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String route,
-    required bool isSelected,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: isSelected 
-          ? Theme.of(context).colorScheme.primaryContainer
-          : Colors.transparent,
-      ),
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: isSelected 
-            ? Theme.of(context).colorScheme.onPrimaryContainer
-            : Theme.of(context).colorScheme.onSurface,
-        ),
-        title: Text(
-          title,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: isSelected 
-              ? Theme.of(context).colorScheme.onPrimaryContainer
-              : Theme.of(context).colorScheme.onSurface,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
-        onTap: () {
-          if (!isSelected) {
-            // Usar context.go() para pantalla principal, context.push() para otras
-            if (route == '/home') {
-              context.go(route); // Reemplaza la pila de navegación
-            } else {
-              context.push(route); // Añade a la pila de navegación
-            }
-          }
-          Navigator.of(context).pop(); // Cerrar drawer
-        },
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      ),
-    );
-  }
-}
-\`\`\``;
-  }
-
-  /**
-   * Obtiene el icono apropiado para cada página según el tipo de app
-   */
-  private getIconForPage(routeName: string, appType: string): string {
-    // Iconos comunes para todas las apps
-    const commonIcons: { [key: string]: string } = {
-      'home': 'Icons.home',
-      'profile': 'Icons.person',
-      'settings': 'Icons.settings',
-      'login': 'Icons.login',
-      'register': 'Icons.person_add',
-    };
-
-    if (commonIcons[routeName]) {
-      return commonIcons[routeName];
-    }
-
-    // Iconos específicos por tipo de app
-    switch (appType) {
-      case 'medical':
-        const medicalIcons: { [key: string]: string } = {
-          'doctors': 'Icons.local_hospital',
-          'appointment': 'Icons.calendar_today',
-          'medicalhistory': 'Icons.history_edu',
-          'prescriptions': 'Icons.medication',
-        };
-        return medicalIcons[routeName] || 'Icons.medical_services';
-
-      case 'education':
-        const educationIcons: { [key: string]: string } = {
-          'courses': 'Icons.school',
-          'assignments': 'Icons.assignment',
-          'grades': 'Icons.grade',
-          'schedule': 'Icons.schedule',
-          'teachers': 'Icons.group',
-        };
-        return educationIcons[routeName] || 'Icons.book';
-
-      case 'project_management':
-        const projectIcons: { [key: string]: string } = {
-          'dashboard': 'Icons.dashboard',
-          'createproject': 'Icons.create_new_folder',
-          'permissions': 'Icons.security',
-          'publish': 'Icons.publish',
-          'repository': 'Icons.folder',
-          'useraccess': 'Icons.group_add',
-        };
-        return projectIcons[routeName] || 'Icons.work';
-
-      case 'ecommerce':
-        const ecommerceIcons: { [key: string]: string } = {
-          'products': 'Icons.shopping_bag',
-          'cart': 'Icons.shopping_cart',
-          'orders': 'Icons.receipt_long',
-          'wishlist': 'Icons.favorite',
-        };
-        return ecommerceIcons[routeName] || 'Icons.store';
-
-      case 'finance':
-        const financeIcons: { [key: string]: string } = {
-          'accounts': 'Icons.account_balance',
-          'transactions': 'Icons.receipt',
-          'payments': 'Icons.payment',
-          'budget': 'Icons.pie_chart',
-        };
-        return financeIcons[routeName] || 'Icons.attach_money';
-
-      case 'fitness':
-        const fitnessIcons: { [key: string]: string } = {
-          'workouts': 'Icons.fitness_center',
-          'progress': 'Icons.trending_up',
-          'nutrition': 'Icons.restaurant',
-          'challenges': 'Icons.emoji_events',
-        };
-        return fitnessIcons[routeName] || 'Icons.sports';
-
-      default:
-        const genericIcons: { [key: string]: string } = {
-          'list': 'Icons.list',
-          'detail': 'Icons.info',
-          'search': 'Icons.search',
-          'favorites': 'Icons.favorite',
-        };
-        return genericIcons[routeName] || 'Icons.circle';
-    }
-  }
-
-  /**
-   * Obtiene información del header del drawer según el tipo de app
-   */
-  private getAppHeaderInfo(appType: string): { headerIcon: string; headerTitle: string } {
-    switch (appType) {
-      case 'medical':
-        return { headerIcon: 'Icons.medical_services', headerTitle: 'Medical App' };
-      case 'education':
-        return { headerIcon: 'Icons.school', headerTitle: 'Education App' };
-      case 'project_management':
-        return { headerIcon: 'Icons.work', headerTitle: 'Project Manager' };
-      case 'ecommerce':
-        return { headerIcon: 'Icons.store', headerTitle: 'E-commerce App' };
-      case 'finance':
-        return { headerIcon: 'Icons.account_balance', headerTitle: 'Finance App' };
-      case 'fitness':
-        return { headerIcon: 'Icons.fitness_center', headerTitle: 'Fitness App' };
-      default:
-        return { headerIcon: 'Icons.mobile_friendly', headerTitle: 'Flutter App' };
-    }
-  }
-
-  /**
-   * Obtiene los requerimientos detallados de contenido para cada tipo de app
-   */
-  private getDetailedScreenRequirements(appType: string): string {
-    switch (appType) {
-      case 'medical':
-        return `CONTENIDO ESPECÍFICO:
-- HomeScreen: Dashboard con próximas citas, recordatorios medicamentos, estado salud
-- DoctorsScreen: Lista doctores con especialidades, ratings, botón "Agendar Cita"
-- AppointmentScreen: Calendario citas, formulario nueva cita, historial
-- MedicalHistoryScreen: Timeline historial médico, documentos, resultados
-- PrescriptionsScreen: Lista medicamentos activos, horarios, recordatorios
-- ProfileScreen: Datos paciente, contacto emergencia, seguro médico
-- SettingsScreen: Notificaciones, privacidad, idioma
-- LoginScreen: Email/password, "Olvidé contraseña", registro
-- RegisterScreen: Formulario completo paciente, términos servicio`;
-
-      case 'education':
-        return `CONTENIDO ESPECÍFICO:
-- HomeScreen: Dashboard estudiante con próximas clases, tareas pendientes, anuncios
-- CoursesScreen: Grid materias inscritas con progreso, calificaciones, accesos rápidos
-- AssignmentsScreen: Lista tareas pendientes/completadas, fechas entrega, prioridades
-- GradesScreen: Tabla calificaciones por materia, promedios, gráficos progreso
-- ScheduleScreen: Calendario semanal clases, horarios, aulas, profesores
-- TeachersScreen: Lista profesores con materias, contactos, horarios oficina
-- ProfileScreen: Datos estudiante, expediente académico, contactos emergencia
-- SettingsScreen: Notificaciones, tema app, sincronización calendario
-- LoginScreen: Matrícula/password, "Olvidé contraseña", acceso docentes`;
-
-      case 'project_management':
-        return `CONTENIDO ESPECÍFICO:
-- DashboardScreen: Panel control con proyectos activos, estadísticas, actividad reciente
-- CreateProjectScreen: Formulario creación con nombre, descripción, tipo repositorio
-- PermissionsScreen: Configuración permisos usuario (Read/Write, Read-only, None)
-- PublishScreen: Publicación proyectos con validaciones, deploy, releases
-- RepositoryScreen: Lista repositorios con branches, commits, pull requests
-- UserAccessScreen: Gestión usuarios, roles, invitaciones, colaboradores
-- ProfileScreen: Datos desarrollador, SSH keys, tokens, configuración Git
-- SettingsScreen: Configuraciones IDE, notificaciones, integraciones
-- LoginScreen: OAuth GitHub/GitLab, SSH keys, autenticación 2FA`;
-
-      case 'ecommerce':
-        return `CONTENIDO ESPECÍFICO:
-- HomeScreen: Productos destacados, ofertas, categorías, búsqueda
-- ProductsScreen: Grid productos con precios, ratings, filtros categoría/precio
-- CartScreen: Items seleccionados, cantidades, totales, cupones descuento
-- OrdersScreen: Historial pedidos, estados envío, tracking, reordenar
-- WishlistScreen: Productos guardados, comparar precios, mover a carrito
-- ProfileScreen: Datos usuario, direcciones envío, métodos pago
-- SettingsScreen: Notificaciones ofertas, moneda, idioma
-- LoginScreen: Email/password, login social, "Crear cuenta"`;
-
-      case 'finance':
-        return `CONTENIDO ESPECÍFICO:
-- HomeScreen: Balance total, gráfico gastos/ingresos, transacciones recientes
-- AccountsScreen: Lista cuentas bancarias, tarjetas, saldos, tipos cuenta
-- TransactionsScreen: Historial movimientos con filtros fecha/categoría/monto
-- PaymentsScreen: Pagos programados, transferencias, códigos QR
-- BudgetScreen: Presupuestos por categoría, alertas gastos, metas ahorro
-- ProfileScreen: Datos personales, configuración seguridad, verificación
-- SettingsScreen: Notificaciones movimientos, categorías personalizadas
-- LoginScreen: Usuario/PIN, autenticación biométrica, recuperar acceso`;
-
-      case 'fitness':
-        return `CONTENIDO ESPECÍFICO:
-- HomeScreen: Progreso semanal, rutina hoy, estadísticas motivacionales
-- WorkoutsScreen: Rutinas disponibles, ejercicios, temporizadores, videos
-- ProgressScreen: Gráficos peso/medidas, fotos progreso, logros alcanzados
-- NutritionScreen: Contador calorías, macros, recetas saludables, agua
-- ChallengesScreen: Desafíos activos, rankings amigos, recompensas
-- ProfileScreen: Datos físicos, objetivos fitness, historial médico
-- SettingsScreen: Recordatorios ejercicio, unidades medida, privacidad
-- LoginScreen: Email/password, conectar dispositivos, crear perfil`;
-
-      default:
-        return `CONTENIDO ESPECÍFICO:
-- HomeScreen: Dashboard principal con accesos rápidos y notificaciones
-- ListScreen: Lista elementos con búsqueda, filtros, ordenamiento
-- DetailScreen: Vista detallada item con acciones principales
-- SearchScreen: Búsqueda avanzada con sugerencias y historial
-- FavoritesScreen: Items guardados con organización y compartir
-- ProfileScreen: Datos usuario, preferencias, configuración cuenta
-- SettingsScreen: Configuraciones app, notificaciones, privacidad
-- LoginScreen: Autenticación segura con opciones recuperación`;
-    }
-  }
-
-  /**
-   * Genera contenido específico y funcional para cada tipo de pantalla
-   */
-  private generateScreenContent(screenName: string, appType: string, screenDetection?: any): string {
-    const screenType = screenName.replace('Screen', '').toLowerCase();
-    
-    switch (screenType) {
-      case 'home':
-        return this.generateHomeContent(appType, screenDetection);
-      case 'login':
-        return this.generateLoginContent(appType);
-      case 'profile':
-        return this.generateProfileContent(appType);
-      case 'settings':
-        return this.generateSettingsContent(appType);
-      default:
-        return this.generateDomainSpecificContent(screenType, appType, screenDetection);
-    }
-  }
-
-  private generateHomeContent(appType: string, screenDetection?: any): string {
-    switch (appType) {
-      case 'medical':
-        return `SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.medical_services, color: Theme.of(context).colorScheme.primary),
-                        const SizedBox(width: 8),
-                        Text('Bienvenido/a', style: Theme.of(context).textTheme.headlineSmall),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Próxima cita: Hoy 2:30 PM - Dr. García'),
-                    const SizedBox(height: 8),
-                    Text('Medicamentos pendientes: 2'),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('Accesos Rápidos', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              children: [
-                _buildQuickAction(Icons.calendar_today, 'Citas', () {}),
-                _buildQuickAction(Icons.local_hospital, 'Doctores', () {}),
-                _buildQuickAction(Icons.medication, 'Medicamentos', () {}),
-                _buildQuickAction(Icons.history_edu, 'Historial', () {}),
-              ],
-            ),
-          ],
-        ),
-      )`;
-
-      case 'education':
-        return `SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.school, color: Theme.of(context).colorScheme.primary),
-                        const SizedBox(width: 8),
-                        Text('Dashboard Estudiante', style: Theme.of(context).textTheme.headlineSmall),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Próxima clase: Matemáticas - 10:00 AM'),
-                    const SizedBox(height: 8),
-                    Text('Tareas pendientes: 3'),
-                    const SizedBox(height: 8),
-                    Text('Promedio general: 8.5'),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('Accesos Rápidos', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              children: [
-                _buildQuickAction(Icons.book, 'Cursos', () {}),
-                _buildQuickAction(Icons.assignment, 'Tareas', () {}),
-                _buildQuickAction(Icons.grade, 'Calificaciones', () {}),
-                _buildQuickAction(Icons.schedule, 'Horario', () {}),
-              ],
-            ),
-          ],
-        ),
-      )`;
-
-      default:
-        return `const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.home, size: 64, color: Colors.blue),
-            SizedBox(height: 16),
-            Text('Dashboard Principal', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
-            Text('Bienvenido a tu aplicación'),
-          ],
-        ),
-      )`;
-    }
-  }
-
-  private generateLoginContent(appType: string): string {
-    return `Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(${this.getAppHeaderInfo(appType).headerIcon}, size: 80, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 24),
-          Text('${this.getAppHeaderInfo(appType).headerTitle}', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 32),
-          TextField(
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(Icons.email),
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'Contraseña',
-              prefixIcon: Icon(Icons.lock),
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {},
-              child: const Text('Iniciar Sesión'),
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () {},
-            child: const Text('¿Olvidaste tu contraseña?'),
-          ),
-        ],
-      ),
-    )`;
-  }
-
-  private generateProfileContent(appType: string): string {
-    return `SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          const CircleAvatar(
-            radius: 50,
-            child: Icon(Icons.person, size: 50),
-          ),
-          const SizedBox(height: 16),
-          Text('Usuario Demo', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 8),
-          Text('usuario@example.com'),
-          const SizedBox(height: 24),
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.person),
-                  title: const Text('Información Personal'),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {},
-                ),
-                ListTile(
-                  leading: const Icon(Icons.security),
-                  title: const Text('Seguridad'),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {},
-                ),
-                ListTile(
-                  leading: const Icon(Icons.notifications),
-                  title: const Text('Notificaciones'),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {},
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    )`;
-  }
-
-  private generateSettingsContent(appType: string): string {
-    return `ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.notifications),
-                title: const Text('Notificaciones'),
-                trailing: Switch(value: true, onChanged: (value) {}),
-              ),
-              ListTile(
-                leading: const Icon(Icons.dark_mode),
-                title: const Text('Tema Oscuro'),
-                trailing: Switch(value: false, onChanged: (value) {}),
-              ),
-              ListTile(
-                leading: const Icon(Icons.language),
-                title: const Text('Idioma'),
-                subtitle: const Text('Español'),
-                trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {},
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.privacy_tip),
-                title: const Text('Privacidad'),
-                trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {},
-              ),
-              ListTile(
-                leading: const Icon(Icons.help),
-                title: const Text('Ayuda'),
-                trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {},
-              ),
-              ListTile(
-                leading: const Icon(Icons.info),
-                title: const Text('Acerca de'),
-                trailing: const Icon(Icons.arrow_forward_ios),
-                onTap: () {},
-              ),
-            ],
-          ),
-        ),
-      ],
-    )`;
-  }
-
-  private generateDomainSpecificContent(screenType: string, appType: string, screenDetection?: any): string {
-    // SI HAY DETECCIÓN DE PANTALLAS, USAR ESA INFORMACIÓN
-    if (screenDetection && screenDetection.screenSections) {
-      const matchingSection = screenDetection.screenSections.find(
-        section => section.title.toLowerCase().includes(screenType.toLowerCase())
+      // o3 puede devolver formato diferente, ser más flexible
+      const hasValidContent = generatedCode.length > 100 && (
+        generatedCode.includes('[FILE:') || 
+        generatedCode.includes('pubspec.yaml') ||
+        generatedCode.includes('lib/main.dart') ||
+        generatedCode.includes('flutter:') ||
+        generatedCode.includes('features/')
       );
       
-      if (matchingSection) {
-        this.logger.debug(`🎯 Generando contenido específico para ${screenType} basado en detección XML`);
-        return this.generateContentFromDetection(matchingSection);
+      if (!hasValidContent) {
+        this.logger.error(`❌ La IA no generó código válido - no hay fallback`);
+        throw new Error('No se pudo generar código válido desde la IA y el XML');
       }
-    }
-    
-    // FALLBACK: Contenido genérico para pantallas específicas
-    this.logger.debug(`📱 Generando contenido genérico para pantalla: ${screenType}`);
-    
-    // Contenido genérico si no hay detección específica
-    return `Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${screenType.charAt(0).toUpperCase() + screenType.slice(1)} Screen',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 16),
-          const Text('Esta pantalla está en desarrollo.'),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () {},
-            child: const Text('Acción Principal'),
-          ),
-        ],
-      ),
-    )`;
-  }
-
-  /**
-   * Genera contenido específico basado en la detección de XML
-   */
-  private generateContentFromDetection(section: any): string {
-    const widgets: string[] = [];
-    
-    // Título de la sección
-    widgets.push(`Text(
-      '${section.title.replace('Screen', '')}',
-      style: Theme.of(context).textTheme.headlineMedium,
-    )`);
-    
-    widgets.push('const SizedBox(height: 16)');
-    
-    // Agregar textos detectados
-    if (section.texts && section.texts.length > 0) {
-      section.texts.forEach((text: string, index: number) => {
-        if (index === 0) {
-          widgets.push(`Text(
-            '${text}',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          )`);
-        } else {
-          widgets.push(`Text('${text}')`);
-        }
-        widgets.push('const SizedBox(height: 8)');
-      });
-    }
-    
-    // Agregar campos detectados como formulario
-    if (section.fields && section.fields.length > 0) {
-      widgets.push('const SizedBox(height: 16)');
-      widgets.push('// Formulario generado desde detección XML');
       
-      section.fields.forEach((field: string) => {
-        widgets.push(`TextFormField(
-          decoration: InputDecoration(
-            labelText: '${field}',
-            border: const OutlineInputBorder(),
-          ),
-        )`);
-        widgets.push('const SizedBox(height: 12)');
-      });
+      this.logger.debug(`✅ Código de IA detectado como válido, procesando...`);
+      return generatedCode;
+    } catch (error) {
+      this.logger.error(`❌ Error crítico con OpenAI: ${error.message}`);
+      throw new Error(`Error generando con IA: ${error.message}`);
     }
-    
-    // Agregar radio groups detectados
-    if (section.radioGroups && section.radioGroups.length > 0) {
-      widgets.push('const SizedBox(height: 16)');
-      
-      section.radioGroups.forEach((group: any) => {
-        widgets.push(`Text(
-          '${group.title}',
-          style: Theme.of(context).textTheme.titleMedium,
-        )`);
-        widgets.push('const SizedBox(height: 8)');
-        
-        group.options.forEach((option: any) => {
-          widgets.push(`RadioListTile<String>(
-            title: Text('${option.text}'),
-            value: '${option.text}',
-            groupValue: selectedPermission,
-            onChanged: (value) => setState(() => selectedPermission = value!),
-          )`);
-        });
-      });
-    }
-    
-    // Agregar botones detectados
-    if (section.buttons && section.buttons.length > 0) {
-      widgets.push('const SizedBox(height: 24)');
-      widgets.push('Row(');
-      widgets.push('  children: [');
-      
-      section.buttons.forEach((button: string, index: number) => {
-        const isPrimary = button.toLowerCase().includes('publish') || 
-                         button.toLowerCase().includes('primary') ||
-                         button.toLowerCase().includes('save');
-        
-        if (isPrimary) {
-          widgets.push(`    ElevatedButton(
-              onPressed: () {},
-              child: Text('${button}'),
-            )`);
-        } else {
-          widgets.push(`    TextButton(
-              onPressed: () {},
-              child: Text('${button}'),
-            )`);
-        }
-        
-        if (index < section.buttons.length - 1) {
-          widgets.push('    const SizedBox(width: 16),');
-        }
-      });
-      
-      widgets.push('  ],');
-      widgets.push(')');
-    }
-    
-    return `Padding(
-      padding: const EdgeInsets.all(16),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ${widgets.join(',\n            ')}
-          ],
-        ),
-      ),
-    )`;
   }
 
   async processGeneratedCode(projectDir: string, code: string): Promise<void> {
@@ -1076,6 +144,10 @@ ${drawerItems}
       /\[FILE:\s*([^\]]+)\]\s*```[^\n]*\n([\s\S]*?)```/g,
       // Patrón solo con nombre de archivo seguido de código
       /([a-zA-Z0-9_\/\.]+\.(?:dart|yaml))\s*```(?:\w+)?\s*([\s\S]*?)```/g,
+      // NUEVO: Patrón para o3 con separadores de igual
+      /={20,}\s*([^\n=]+?\.(?:dart|yaml))\s*={20,}\s*```(?:\w+)?\s*([\s\S]*?)```/g,
+      // NUEVO: Patrón para o3 con separadores de doble línea ═
+      /═{10,}\s*([a-zA-Z0-9_\/\.]+\.(?:dart|yaml))\s*═{10,}\s*```(?:\w+)?\s*([\s\S]*?)```/g,
     ];
     
     // Probar cada patrón hasta encontrar uno que funcione
@@ -1129,7 +201,20 @@ ${drawerItems}
     let filesCreated = 0;
     
     try {
-      // Buscar bloques de código sin importar el formato
+      // MÉTODO 1: Detectar formato o3 con separadores de igual
+      const o3Matches = this.parseO3Format(code);
+      if (o3Matches.length > 0) {
+        this.logger.debug(`🔧 Detectado formato o3: ${o3Matches.length} archivos`);
+        for (const match of o3Matches) {
+          const cleanContent = this.applyAutomaticFixes(match.content.trim(), match.filePath);
+          const fullPath = path.join(projectDir, match.filePath);
+          await this.writeFile(fullPath, cleanContent);
+          filesCreated++;
+        }
+        return filesCreated;
+      }
+
+      // MÉTODO 2: Buscar bloques de código sin importar el formato
       const codeBlocks = code.split('```');
       
       for (let i = 0; i < codeBlocks.length - 1; i += 2) {
@@ -1173,6 +258,27 @@ ${drawerItems}
     }
     
     return filesCreated;
+  }
+
+  /**
+   * Parse el formato específico de o3 que usa separadores ====
+   */
+  private parseO3Format(code: string): Array<{filePath: string, content: string}> {
+    const files: Array<{filePath: string, content: string}> = [];
+    
+    // Buscar patrón o3: ════════════ filename ════════════ seguido de ```
+    const o3Pattern = /═{10,}\s*([a-zA-Z0-9_\/\.]+\.(?:dart|yaml))\s*═{10,}\s*```(?:\w+)?\s*([\s\S]*?)```/g;
+    let match;
+    
+    while ((match = o3Pattern.exec(code)) !== null) {
+      const filePath = match[1].trim();
+      const content = match[2].trim();
+      
+      this.logger.debug(`🔧 Formato o3 detectado: ${filePath} (${content.length} chars)`);
+      files.push({ filePath, content });
+    }
+    
+    return files;
   }
 
   /**
@@ -1504,8 +610,6 @@ import '../../../core/themes/app_theme.dart';`
 
   private async createMissingBaseFiles(projectDir: string, context: GenerationContext): Promise<void> {
     const appName = this.generateAppName(context.xml || context.prompt || '');
-    const xmlContent = context.xml || '';
-    const screenDetection = this.screenDetector.detectScreens(xmlContent);
     
     this.logger.debug('🔍 Verificando qué archivos base faltan después de generación de IA...');
     
@@ -1515,7 +619,7 @@ import '../../../core/themes/app_theme.dart';`
     await this.createAndroidManifest(projectDir, appName);
     
     // 2. README.MD (siempre crear - es documentación)
-    await this.createReadmeFile(projectDir, appName, screenDetection);
+    await this.createSimpleReadmeFile(projectDir, appName);
     
     this.logger.debug('✅ Archivos base de sistema creados (la IA generó el resto)');
   }
@@ -1524,10 +628,10 @@ import '../../../core/themes/app_theme.dart';`
     const xmlContent = context.xml || '';
     
     // DETECTAR PANTALLAS Y CONFIGURACIÓN
-    const screenDetection = this.screenDetector.detectScreens(xmlContent);
-    const colors = this.screenDetector.extractColors(xmlContent);
+    // const screenDetection = this.screenDetector.detectScreens(xmlContent);
+    // const colors = this.screenDetector.extractColors(xmlContent);
     
-    this.logger.debug(`🔍 Análisis: ${screenDetection.phoneCount} pantallas, drawer: ${screenDetection.shouldCreateDrawer}`);
+    // this.logger.debug(`🔍 Análisis: ${screenDetection.phoneCount} pantallas, drawer: ${screenDetection.shouldCreateDrawer}`);
     
     // 1. PUBSPEC.YAML
     await this.createPubspecFile(projectDir, appName);
@@ -1545,18 +649,18 @@ import '../../../core/themes/app_theme.dart';`
     await this.createSharedWidgets(projectDir);
     
     // 6. APP_DRAWER.DART (si múltiples pantallas)
-    if (screenDetection.shouldCreateDrawer) {
-      await this.createDrawerFile(projectDir, screenDetection);
-    }
+    // if (screenDetection.shouldCreateDrawer) {
+    //   await this.createDrawerFile(projectDir, screenDetection);
+    // }
     
     // 7. APP_THEME.DART
-    await this.createThemeFile(projectDir, colors);
+    // await this.createThemeFile(projectDir, colors);
     
     // 8. ANDROID MANIFEST
     await this.createAndroidManifest(projectDir, appName);
     
     // 9. README.MD
-    await this.createReadmeFile(projectDir, appName, screenDetection);
+    // await this.createReadmeFile(projectDir, appName, screenDetection);
   }
 
   private async createPubspecFile(projectDir: string, appName: string): Promise<void> {
@@ -1732,6 +836,35 @@ Flutter application generated from Draw.io mockup.
 - Navigation drawer available for multi-screen apps
 
 Generated with improved error prevention and modern Flutter patterns.
+`;
+
+    await fs.writeFile(path.join(projectDir, 'README.md'), readmeContent);
+  }
+
+  private async createSimpleReadmeFile(projectDir: string, appName: string): Promise<void> {
+    const readmeContent = `# ${appName}
+
+Flutter application generated from AI analysis.
+
+## Getting Started
+
+1. Make sure you have Flutter installed
+2. Run \`flutter pub get\` to install dependencies
+3. Run \`flutter run\` to launch the app
+
+## Architecture
+
+- **State Management**: Flutter built-in (StatefulWidget)
+- **Navigation**: GoRouter
+- **Design**: Material Design 3
+- **Structure**: AI-generated modular architecture
+
+## Navigation
+
+- \`context.push('/route')\` to navigate
+- \`context.pop()\` to go back
+
+Generated with AI interpretation of XML mockup.
 `;
 
     await fs.writeFile(path.join(projectDir, 'README.md'), readmeContent);

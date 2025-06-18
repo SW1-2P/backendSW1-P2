@@ -9,7 +9,7 @@ import { FlutterGenerator } from './generators/flutter-generator';
 import { AngularGenerator } from './generators/angular-generator';
 import { MockupIntegrationService } from './services/mockup-integration.service';
 import { FlutterPromptService } from './services/flutter-prompt.service';
-import { FlutterScreenDetectorService } from './services/flutter-screen-detector.service';
+// import { FlutterScreenDetectorService } from './services/flutter-screen-detector.service';
 import { PromptEnrichmentService } from './services/prompt-enrichment.service';
 import { ImageAnalysisService } from './services/image-analysis.service';
 
@@ -26,7 +26,7 @@ import { ImageAnalysisService } from './services/image-analysis.service';
     AngularGenerator,
     MockupIntegrationService,
     FlutterPromptService,
-    FlutterScreenDetectorService,
+    // FlutterScreenDetectorService,
     PromptEnrichmentService,
     ImageAnalysisService,
   ],

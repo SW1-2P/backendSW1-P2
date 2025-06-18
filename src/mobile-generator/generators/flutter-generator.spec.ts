@@ -2,14 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { FlutterGenerator } from './flutter-generator';
 import { ChatgptService } from '../../chatgpt/chatgpt.service';
 import { FlutterPromptService } from '../services/flutter-prompt.service';
-import { FlutterScreenDetectorService } from '../services/flutter-screen-detector.service';
+// import { FlutterScreenDetectorService } from '../services/flutter-screen-detector.service';
 import { GenerationContext } from '../interfaces/generator.interface';
 
 describe('FlutterGenerator', () => {
   let generator: FlutterGenerator;
   let mockChatgptService: jest.Mocked<ChatgptService>;
   let mockPromptService: jest.Mocked<FlutterPromptService>;
-  let mockScreenDetector: jest.Mocked<FlutterScreenDetectorService>;
+  // let mockScreenDetector: jest.Mocked<FlutterScreenDetectorService>;
 
   // XML de test del usuario
   const testXmlMockup = `<mxfile host="embed.diagrams.net">
@@ -43,16 +43,16 @@ describe('FlutterGenerator', () => {
     } as any;
 
     // Mock del FlutterScreenDetectorService
-    mockScreenDetector = {
-      detectScreens: jest.fn(),
-    } as any;
+    // mockScreenDetector = {
+    //   detectScreens: jest.fn(),
+    // } as any;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FlutterGenerator,
         { provide: ChatgptService, useValue: mockChatgptService },
         { provide: FlutterPromptService, useValue: mockPromptService },
-        { provide: FlutterScreenDetectorService, useValue: mockScreenDetector },
+        // { provide: FlutterScreenDetectorService, useValue: mockScreenDetector },
       ],
     }).compile();
 
@@ -246,7 +246,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
 \`\`\``;
 
       // Configurar mocks
-      mockScreenDetector.detectScreens.mockReturnValue(mockScreenDetection);
+      // mockScreenDetector.detectScreens.mockReturnValue(mockScreenDetection);
       mockPromptService.createSystemPrompt.mockReturnValue(mockSystemPrompt);
       mockPromptService.createUserPrompt.mockReturnValue(mockUserPrompt);
       mockChatgptService.generateFlutterCode.mockResolvedValue(mockGeneratedCode);
@@ -264,7 +264,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
       const result = await generateWithAI(context);
 
       // Verificaciones
-      expect(mockScreenDetector.detectScreens).toHaveBeenCalledWith(testXmlMockup);
+      // expect(mockScreenDetector.detectScreens).toHaveBeenCalledWith(testXmlMockup);
       expect(mockPromptService.createSystemPrompt).toHaveBeenCalled();
       expect(mockPromptService.createUserPrompt).toHaveBeenCalledWith(context, mockScreenDetection);
       expect(mockChatgptService.generateFlutterCode).toHaveBeenCalledWith(mockSystemPrompt, mockUserPrompt);
@@ -319,7 +319,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
         hasProjectContent: false
       };
 
-      mockScreenDetector.detectScreens.mockReturnValue(mockScreenDetection);
+      // mockScreenDetector.detectScreens.mockReturnValue(mockScreenDetection);
       mockPromptService.createSystemPrompt.mockReturnValue('system prompt');
       mockPromptService.createUserPrompt.mockReturnValue('user prompt');
       mockChatgptService.generateFlutterCode.mockRejectedValue(new Error('API Error'));

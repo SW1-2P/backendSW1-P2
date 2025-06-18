@@ -24,7 +24,7 @@ export class ChatgptService {
 
   /**
    * Genera respuestas usando o3 para generación de código Flutter/Angular
-   * @param messages Array de mensajes con role y content
+   * @param messages Array de mensajes con role and content
    * @param model Modelo a usar (por defecto o3 para mejor calidad)
    * @param temperature Temperatura para creatividad (por defecto 0.7)
    * @returns Respuesta del modelo
@@ -99,19 +99,16 @@ export class ChatgptService {
    * Optimizado para prompts largos y respuestas complejas
    */
   async generateFlutterCode(systemPrompt: string, userPrompt: string): Promise<string> {
-    // Intentar o3 primero con prompts optimizados
+    // Intentar o3 primero con prompts completos SIN optimizar
     try {
       this.logger.debug('🚀 Intentando generación con o3...');
       
-      // Crear prompts específicamente optimizados para o3
-      const o3SystemPrompt = this.optimizePromptForO3(systemPrompt);
-      const o3UserPrompt = this.optimizePromptForO3(userPrompt);
-      
-      this.logger.debug(`📏 Longitud prompts para o3: system=${o3SystemPrompt.length}, user=${o3UserPrompt.length}`);
+      // Enviar prompts COMPLETOS sin optimización
+      this.logger.debug(`📏 Longitud prompts para o3: system=${systemPrompt.length}, user=${userPrompt.length}`);
       
       const messages = [
-        { role: 'system', content: o3SystemPrompt },
-        { role: 'user', content: o3UserPrompt }
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
       ];
       
       const result = await this.chat(messages, 'o3', 1);
@@ -136,40 +133,6 @@ export class ChatgptService {
       
       return this.chat(messages, 'gpt-4o', 0.2);
     }
-  }
-
-  /**
-   * Optimiza prompts para o3 reduciéndolos y simplificándolos
-   */
-  private optimizePromptForO3(prompt: string): string {
-    // o3 usa muchos tokens para reasoning, necesitamos prompts MUY cortos
-    if (prompt.length > 1500) {
-      this.logger.debug(`🔧 Reduciendo prompt de ${prompt.length} a ~1500 chars para o3`);
-      
-      // Para o3: SOLO lo esencial
-      const lines = prompt.split('\n');
-      const criticalLines = lines.filter(line => {
-        const lower = line.toLowerCase();
-        return (
-          lower.includes('screen:') ||
-          lower.includes('homescreen') ||
-          lower.includes('doctorsscreen') ||
-          lower.includes('appointmentscreen') ||
-          lower.includes('prescriptionsscreen') ||
-          lower.includes('medicalhistoryscreen') ||
-          lower.includes('profilescreen') ||
-          lower.includes('settingsscreen') ||
-          lower.includes('loginscreen') ||
-          lower.includes('registerscreen') ||
-          line.trim().length < 80
-        );
-      });
-      
-      // Máximo 20 líneas para o3
-      return criticalLines.slice(0, 20).join('\n');
-    }
-    
-    return prompt;
   }
 
   /**
