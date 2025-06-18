@@ -634,77 +634,73 @@ ${xml}`;
    */
   private createPromptBasedPrompt(context: GenerationContext): string {
     const aiInterpretedPrompt = context.prompt || 'Aplicación móvil estándar';
+    const appName = context.config?.package_name || 'GeneratedApp';
 
-    return `GENERACIÓN DE CÓDIGO FLUTTER DESDE INTERPRETACIÓN DE IA:
+    return `GENERAR APLICACIÓN FLUTTER COMPLETA DESDE INTERPRETACIÓN GPT
 
-LA IA YA INTERPRETÓ Y ESPECIFICÓ ESTO:
+**FORMATO DE RESPUESTA OBLIGATORIO:**
+Debes usar EXACTAMENTE este formato para cada archivo:
+
+[FILE: ruta/del/archivo.dart]
+\`\`\`dart
+// código aquí
+\`\`\`
+
+[FILE: pubspec.yaml]
+\`\`\`yaml
+# código aquí
+\`\`\`
+
+❌ NO uses separadores como ═══, ───, o texto explicativo
+✅ USA SOLO: [FILE: ruta] seguido de \`\`\`tipo
+
+APLICACIÓN: ${appName}
+
+🤖 **ESPECIFICACIÓN COMPLETA DE GPT-4o:**
+La IA GPT-4o ya analizó, interpretó y especificó EXACTAMENTE toda la aplicación que necesitas generar:
+
 ${aiInterpretedPrompt}
 
-TU MISIÓN: Convertir esta ESPECIFICACIÓN TÉCNICA COMPLETA en código Flutter funcional.
+🎯 **INSTRUCCIONES CRÍTICAS:**
+- Implementa EXACTAMENTE lo que GPT especificó en su análisis completo
+- Genera TODAS las pantallas que GPT detalló
+- Incluye TODAS las funcionalidades que GPT mencionó
+- Respeta TODA la arquitectura que GPT definió
+- Sigue TODAS las especificaciones técnicas que GPT proporcionó
 
-CONFIGURACIÓN ADICIONAL:
-${JSON.stringify(context.config || {}, null, 2)}
-
-REQUERIMIENTOS CRÍTICOS - IMPLEMENTAR SEGÚN LA ESPECIFICACIÓN IA:
-1. **LEE CUIDADOSAMENTE** toda la especificación técnica de la IA
-2. **GENERA TODAS** las pantallas que la IA especificó en su análisis
-3. **IMPLEMENTA TODAS** las funcionalidades que la IA detalló
-4. **RESPETA** la arquitectura que la IA definió para el proyecto
-5. **USA ARQUITECTURA LIMPIA**: Flutter + GoRouter + Material Design 3
-6. **NO USES ESTADOS COMPLEJOS**: NO usar Riverpod, Provider, ChangeNotifier, Consumer
-7. **SOLO StatefulWidget**: Para estado usar setState() únicamente
-8. **IMPORTS CORRECTOS** en todos los archivos
-9. **AppRouter().router** (NO AppRouter.router)
-
-ARQUITECTURA TÉCNICA SEGÚN LA IA:
-- Flutter puro con StatefulWidget para estado (NO usar Riverpod ni Provider)
+ARQUITECTURA TÉCNICA OBLIGATORIA:
+- Flutter puro con StatefulWidget + setState() (NO Riverpod, NO Provider)
 - GoRouter para navegación (go_router: ^13.0.0)
 - Material Design 3 con useMaterial3: true
-- Estructura modular según lo que definió la IA
-- TODAS las pantallas que la IA especificó en su análisis
-- Navigation drawer o BottomNav según lo que definió la IA
-- Formularios y funcionalidades según la especificación de la IA
-- Estados simples (loading, error, success) con setState() únicamente
+- Estructura modular: lib/features/[domain]/screens/
+
+GENERAR PROYECTO FLUTTER COMPLETO:
+- pubspec.yaml con dependencias correctas
+- lib/main.dart como punto de entrada
+- lib/app.dart con MaterialApp.router
+- lib/core/router/app_router.dart con GoRouter configurado
+- lib/core/themes/app_theme.dart con Material Design 3
+- lib/shared/widgets/app_widgets.dart con componentes reutilizables
+- **TODAS LAS PANTALLAS** según especificación GPT
+- Models y servicios según lo que especificó GPT
 
 PROHIBICIONES ESTRICTAS:
-❌ NO usar flutter_riverpod
-❌ NO usar provider package
-❌ NO usar ChangeNotifier
-❌ NO usar Consumer widgets
-❌ NO usar ProviderScope
-❌ NO usar StateNotifier
-❌ NO usar AsyncValue
+❌ NO usar flutter_riverpod, provider, ChangeNotifier
+❌ NO usar Consumer widgets, ProviderScope, StateNotifier
 ❌ NO usar ref.watch() o ref.read()
-❌ NO importar 'package:flutter_riverpod/flutter_riverpod.dart'
-❌ NO importar 'package:provider/provider.dart'
 ❌ NO crear referencias circulares en AppTheme
-❌ NO usar variables que se referencien a sí mismas
 
-IMPLEMENTACIÓN ESPECÍFICA REQUERIDA:
-✅ SOLO las pantallas específicamente solicitadas
-✅ SOLO las funcionalidades específicamente mencionadas
-✅ Navigation drawer SOLO si hay más de 2 pantallas principales
-✅ Formularios básicos apropiados para las pantallas solicitadas
-✅ Navegación entre las pantallas solicitadas con GoRouter
-✅ Imports correctos y código limpio
-✅ AppRouter().router (NO AppRouter.router)
+✅ SOLO USAR:
 ✅ StatefulWidget con setState() para TODOS los estados
-✅ Variables de instancia simples (String, bool, int) para datos
-✅ Formularios con GlobalKey<FormState> y TextEditingController
+✅ Variables de instancia simples (String, bool, int)
+✅ TextEditingController para formularios
+✅ GlobalKey<FormState> para validación
+✅ AppRouter().router (NO AppRouter.router)
 
-VALIDACIÓN CRÍTICA:
-- ¿Implementé TODAS las pantallas que la IA especificó en su análisis?
-- ¿Respeté la arquitectura y estructura que definió la IA?
-- ¿Las funcionalidades corresponden a lo que analizó la IA?
-- ¿El drawer/bottomNav sigue lo que especificó la IA?
-- ¿NO usé ningún Provider, Riverpod o ChangeNotifier?
-- ¿Todas las pantallas usan StatefulWidget con setState()?
-- ¿No hay imports de flutter_riverpod o provider?
-- ¿AppTheme NO tiene referencias circulares?
-- ¿Los colores están definidos como constantes antes de usarse?
-- ¿ColorScheme.fromSeed usa constantes, NO variables que se referencien a sí mismas?
+IMPORTANTE: Cada archivo debe usar el formato [FILE: ruta] exacto sin variaciones.
 
-Genera EXACTAMENTE los archivos necesarios para implementar FIELMENTE la especificación técnica de la IA.`;
+ESPECIFICACIÓN GPT A IMPLEMENTAR:
+${aiInterpretedPrompt}`;
   }
 
   private analyzeXmlContent(xml: string, screenDetection?: any): string {
@@ -1129,196 +1125,5 @@ Genera EXACTAMENTE los archivos necesarios para implementar FIELMENTE la especif
       return [...new Set(colorMatches)].slice(0, 3);
     }
     return [];
-  }
-
-  /**
-   * Analiza el dominio específico de la aplicación desde el prompt enriquecido
-   */
-  private analyzePromptDomain(prompt: string): string {
-    const lowerPrompt = prompt.toLowerCase();
-    const domains = [
-      { keywords: ['gimnasio', 'fitness', 'entrenamiento', 'ejercicio', 'rutina'], name: 'FITNESS & GYM', icon: '💪' },
-      { keywords: ['delivery', 'comida', 'restaurante', 'pedido', 'entrega'], name: 'FOOD DELIVERY', icon: '🍔' },
-      { keywords: ['contable', 'financiero', 'dinero', 'transaccion', 'factura'], name: 'FINANZAS', icon: '💰' },
-      { keywords: ['educativo', 'escolar', 'estudiante', 'curso', 'aprendizaje'], name: 'EDUCACIÓN', icon: '📚' },
-      { keywords: ['medico', 'salud', 'hospital', 'cita', 'paciente'], name: 'SALUD', icon: '🏥' },
-      { keywords: ['tienda', 'ecommerce', 'producto', 'venta', 'carrito'], name: 'E-COMMERCE', icon: '🛒' },
-      { keywords: ['social', 'chat', 'mensaje', 'amigo', 'red'], name: 'SOCIAL', icon: '👥' }
-    ];
-
-    for (const domain of domains) {
-      if (domain.keywords.some(keyword => lowerPrompt.includes(keyword))) {
-        return `${domain.icon} DOMINIO DETECTADO: ${domain.name}`;
-      }
-    }
-    return '🔧 DOMINIO: APLICACIÓN GENERAL';
-  }
-
-  /**
-   * Extrae EXACTAMENTE las funcionalidades solicitadas por el usuario
-   */
-  private extractRequestedFeatures(prompt: string): string {
-    const lowerPrompt = prompt.toLowerCase();
-    const features: string[] = [];
-    
-    // Detectar funcionalidades específicas mencionadas
-    if (lowerPrompt.includes('login') || lowerPrompt.includes('iniciar sesion') || lowerPrompt.includes('autenticacion')) {
-      features.push('🔐 Funcionalidad de Login/Autenticación');
-    }
-    
-    if (lowerPrompt.includes('register') || lowerPrompt.includes('registro') || lowerPrompt.includes('crear cuenta')) {
-      features.push('📝 Funcionalidad de Registro de usuarios');
-    }
-    
-    if (lowerPrompt.includes('home') || lowerPrompt.includes('dashboard') || lowerPrompt.includes('panel') || lowerPrompt.includes('inicio')) {
-      features.push('🏠 Pantalla principal/Home con datos específicos');
-    }
-    
-    if (lowerPrompt.includes('perfil') || lowerPrompt.includes('profile') || lowerPrompt.includes('cuenta')) {
-      features.push('👤 Gestión de perfil de usuario');
-    }
-    
-    if (lowerPrompt.includes('configuracion') || lowerPrompt.includes('settings') || lowerPrompt.includes('ajustes')) {
-      features.push('⚙️ Configuraciones de la aplicación');
-    }
-    
-    // Detectar funcionalidades específicas de gym/fitness
-    if (lowerPrompt.includes('gym') || lowerPrompt.includes('gimnasio') || lowerPrompt.includes('fitness')) {
-      features.push('💪 Aplicación específica de GYM/FITNESS');
-      
-      if (lowerPrompt.includes('rutina') || lowerPrompt.includes('ejercicio') || lowerPrompt.includes('workout')) {
-        features.push('🏋️ Gestión de rutinas de ejercicio');
-      }
-      if (lowerPrompt.includes('progreso') || lowerPrompt.includes('estadistica') || lowerPrompt.includes('progress')) {
-        features.push('📊 Seguimiento de progreso y estadísticas');
-      }
-      if (lowerPrompt.includes('muscle') || lowerPrompt.includes('musculo') || lowerPrompt.includes('peso')) {
-        features.push('💪 Registro de pesos y grupos musculares');
-      }
-    }
-    
-    // Si no se detectan funcionalidades específicas, usar el prompt completo
-    if (features.length === 0) {
-      features.push(`🎯 Funcionalidad solicitada: ${prompt.substring(0, 100)}...`);
-    }
-    
-    return features.join('\n');
-  }
-
-  /**
-   * Extrae EXACTAMENTE las pantallas solicitadas por el usuario
-   */
-  private extractExactScreensRequested(prompt: string): string[] {
-    const screens: string[] = [];
-    
-    // NUEVO: Buscar páginas en formato estructurado del prompt enriquecido
-    const structuredPagesMatch = prompt.match(/PÁGINAS PRINCIPALES OBLIGATORIAS[^:]*:([\s\S]*?)(?=FUNCIONALIDADES|PANTALLAS MÍNIMAS|$)/i);
-    
-    if (structuredPagesMatch) {
-      const pageLines = structuredPagesMatch[1]
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.match(/^\d+\.\s*\w+Screen:/));
-      
-      if (pageLines.length > 0) {
-        this.logger.debug(`🎯 Páginas estructuradas encontradas: ${pageLines.length}`);
-        pageLines.forEach(line => {
-          // Extraer el nombre de la pantalla y descripción
-          const match = line.match(/^\d+\.\s*(\w+Screen):\s*(.+)$/);
-          if (match) {
-            const screenName = match[1];
-            const description = match[2];
-            screens.push(`📱 ${screenName} - ${description}`);
-            this.logger.debug(`   • ${screenName}: ${description}`);
-          }
-        });
-        
-        // Si encontramos páginas estructuradas, retornar esas SOLAMENTE
-        if (screens.length > 0) {
-          this.logger.debug(`✅ Usando ${screens.length} páginas del prompt enriquecido`);
-          return screens;
-        }
-      }
-    }
-    
-    // FALLBACK: Detección básica si no hay páginas estructuradas
-    this.logger.debug('🔄 Usando detección básica de páginas (fallback)');
-    const lowerPrompt = prompt.toLowerCase();
-    
-    // Detectar pantallas específicas mencionadas
-    if (lowerPrompt.includes('login') || lowerPrompt.includes('iniciar sesion')) {
-      screens.push('📱 LoginScreen - Pantalla de inicio de sesión');
-    }
-    
-    if (lowerPrompt.includes('register') || lowerPrompt.includes('registro')) {
-      screens.push('📱 RegisterScreen - Pantalla de registro');
-    }
-    
-    // Detectar variantes de pantalla principal/home
-    if (lowerPrompt.includes('home') || lowerPrompt.includes('inicio') || 
-        lowerPrompt.includes('dashboard') || lowerPrompt.includes('panel') ||
-        lowerPrompt.includes('principal')) {
-      screens.push('📱 HomeScreen - Pantalla principal');
-    }
-    
-    if (lowerPrompt.includes('perfil') || lowerPrompt.includes('profile')) {
-      screens.push('📱 ProfileScreen - Pantalla de perfil');
-    }
-    
-    if (lowerPrompt.includes('configuracion') || lowerPrompt.includes('settings') || lowerPrompt.includes('ajustes')) {
-      screens.push('📱 SettingsScreen - Pantalla de configuraciones');
-    }
-    
-    // Detectar pantallas específicas de gym/fitness
-    if (lowerPrompt.includes('gym') || lowerPrompt.includes('gimnasio') || lowerPrompt.includes('fitness')) {
-      if (lowerPrompt.includes('rutina') || lowerPrompt.includes('ejercicio') || lowerPrompt.includes('workout')) {
-        screens.push('📱 WorkoutScreen - Pantalla de rutinas de ejercicio');
-      }
-      if (lowerPrompt.includes('progreso') || lowerPrompt.includes('estadistica') || lowerPrompt.includes('progress')) {
-        screens.push('📱 ProgressScreen - Pantalla de progreso y estadísticas');
-      }
-    }
-    
-    // Si no se detectan pantallas específicas, usar pantallas básicas
-    if (screens.length === 0) {
-      screens.push('📱 HomeScreen - Pantalla principal');
-      this.logger.debug('🔄 Usando pantalla básica como fallback');
-    }
-    
-    return screens;
-  }
-
-  /**
-   * Detecta el contexto específico del dominio para proporcionar datos relevantes
-   */
-  private detectDomainContext(prompt: string): string {
-    const lowerPrompt = prompt.toLowerCase();
-    
-    if (lowerPrompt.includes('gym') || lowerPrompt.includes('gimnasio') || lowerPrompt.includes('fitness')) {
-      return `💪 APLICACIÓN DE GYM/FITNESS DETECTADA:
-- HomeScreen debe mostrar: rutinas del día, progreso reciente, próximos entrenamientos
-- Datos específicos: ejercicios, series, repeticiones, pesos, músculos trabajados
-- UI específica: gráficos de progreso, calendarios de entrenamientos, listas de ejercicios
-- Colores sugeridos: azules/verdes para fitness, rojos para esfuerzo, grises para descanso
-- Iconos específicos: fitness_center, timeline, insights, schedule, person`;
-    }
-    
-    if (lowerPrompt.includes('delivery') || lowerPrompt.includes('comida') || lowerPrompt.includes('restaurante')) {
-      return `🍔 APLICACIÓN DE DELIVERY DETECTADA:
-- HomeScreen debe mostrar: restaurantes cercanos, pedidos recientes, ofertas especiales
-- Datos específicos: menús, precios, tiempos de entrega, calificaciones
-- UI específica: cards de restaurantes, carrito de compras, mapa de ubicaciones
-- Colores sugeridos: rojos/naranjas para comida, verdes para disponible`;
-    }
-    
-    if (lowerPrompt.includes('finanza') || lowerPrompt.includes('banco') || lowerPrompt.includes('dinero')) {
-      return `💰 APLICACIÓN FINANCIERA DETECTADA:
-- HomeScreen debe mostrar: balance actual, transacciones recientes, gastos del mes
-- Datos específicos: montos, categorías, fechas, gráficos de gastos
-- UI específica: cards de balance, listas de transacciones, gráficos circulares
-- Colores sugeridos: azules para confianza, verdes para ingresos, rojos para gastos`;
-    }
-    
-    return '🔧 APLICACIÓN GENERAL: HomeScreen con datos básicos apropiados para la funcionalidad solicitada';
   }
 } 

@@ -5,14 +5,14 @@ import { FlutterGenerator } from './flutter-generator';
 import { AngularGenerator } from './angular-generator';
 import { ChatgptService } from '../../chatgpt/chatgpt.service';
 import { FlutterPromptService } from '../services/flutter-prompt.service';
-import { FlutterScreenDetectorService } from '../services/flutter-screen-detector.service';
+// import { FlutterScreenDetectorService } from '../services/flutter-screen-detector.service';
 
 @Injectable()
 export class GeneratorFactory {
   constructor(
     private readonly chatgptService: ChatgptService,
     private readonly promptService: FlutterPromptService,
-    private readonly screenDetector: FlutterScreenDetectorService,
+    // private readonly screenDetector: FlutterScreenDetectorService,
   ) {}
 
   createGenerator(projectType: ProjectType): IProjectGenerator {
@@ -21,7 +21,7 @@ export class GeneratorFactory {
         return new FlutterGenerator(
           this.chatgptService,
           this.promptService,
-          this.screenDetector,
+          // this.screenDetector,
         );
       case ProjectType.ANGULAR:
         return new AngularGenerator(this.chatgptService);

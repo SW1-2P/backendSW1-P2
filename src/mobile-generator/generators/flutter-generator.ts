@@ -7,14 +7,14 @@ import { ChatgptService } from '../../chatgpt/chatgpt.service';
 import { FLUTTER_WIDGETS } from './flutter-widgets';
 import { GO_ROUTER_TEMPLATE, MATERIAL_APP_TEMPLATE } from '../templates/go-router.template';
 import { FlutterPromptService } from '../services/flutter-prompt.service';
-import { FlutterScreenDetectorService } from '../services/flutter-screen-detector.service';
+// import { FlutterScreenDetectorService } from '../services/flutter-screen-detector.service';
 
 @Injectable()
 export class FlutterGenerator extends BaseGenerator {
   constructor(
     private readonly chatgptService: ChatgptService,
     private readonly promptService: FlutterPromptService,
-    private readonly screenDetector: FlutterScreenDetectorService,
+    // private readonly screenDetector: FlutterScreenDetectorService,
   ) {
     super();
   }
@@ -628,10 +628,10 @@ import '../../../core/themes/app_theme.dart';`
     const xmlContent = context.xml || '';
     
     // DETECTAR PANTALLAS Y CONFIGURACIÓN
-    const screenDetection = this.screenDetector.detectScreens(xmlContent);
-    const colors = this.screenDetector.extractColors(xmlContent);
+    // const screenDetection = this.screenDetector.detectScreens(xmlContent);
+    // const colors = this.screenDetector.extractColors(xmlContent);
     
-    this.logger.debug(`🔍 Análisis: ${screenDetection.phoneCount} pantallas, drawer: ${screenDetection.shouldCreateDrawer}`);
+    // this.logger.debug(`🔍 Análisis: ${screenDetection.phoneCount} pantallas, drawer: ${screenDetection.shouldCreateDrawer}`);
     
     // 1. PUBSPEC.YAML
     await this.createPubspecFile(projectDir, appName);
@@ -649,18 +649,18 @@ import '../../../core/themes/app_theme.dart';`
     await this.createSharedWidgets(projectDir);
     
     // 6. APP_DRAWER.DART (si múltiples pantallas)
-    if (screenDetection.shouldCreateDrawer) {
-      await this.createDrawerFile(projectDir, screenDetection);
-    }
+    // if (screenDetection.shouldCreateDrawer) {
+    //   await this.createDrawerFile(projectDir, screenDetection);
+    // }
     
     // 7. APP_THEME.DART
-    await this.createThemeFile(projectDir, colors);
+    // await this.createThemeFile(projectDir, colors);
     
     // 8. ANDROID MANIFEST
     await this.createAndroidManifest(projectDir, appName);
     
     // 9. README.MD
-    await this.createReadmeFile(projectDir, appName, screenDetection);
+    // await this.createReadmeFile(projectDir, appName, screenDetection);
   }
 
   private async createPubspecFile(projectDir: string, appName: string): Promise<void> {
