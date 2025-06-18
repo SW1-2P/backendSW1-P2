@@ -127,14 +127,16 @@ export class FlutterGenerator extends BaseGenerator {
     
     if (context.xml) {
       screenDetection = this.screenDetector.detectScreens(context.xml);
-      this.logger.debug(`🔍 Fallback - Pantallas detectadas del XML:`, {
-        phoneCount: screenDetection.phoneCount,
-        screenSections: screenDetection.screenSections.length,
-        screens: screenDetection.detectedScreens
-      });
+      if (screenDetection) {
+        this.logger.debug(`🔍 Fallback - Pantallas detectadas del XML:`, {
+          phoneCount: screenDetection.phoneCount,
+          screenSections: screenDetection.screenSections.length,
+          screens: screenDetection.detectedScreens
+        });
+      }
       
       // Usar las pantallas detectadas del XML
-      detectedPages = screenDetection.detectedScreens.length > 0 
+      detectedPages = (screenDetection && screenDetection.detectedScreens.length > 0) 
         ? screenDetection.detectedScreens 
         : ['HomeScreen', 'ProfileScreen', 'SettingsScreen'];
     } else {

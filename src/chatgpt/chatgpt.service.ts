@@ -19,7 +19,7 @@ export class ChatgptService {
       apiKey,
     });
     
-    this.logger.log('Servicio de ChatGPT inicializado con o3');
+    this.logger.log('Servicio de ChatGPT inicializado: o3 para código, 4o para interpretación');
   }
 
   /**
@@ -45,21 +45,36 @@ export class ChatgptService {
         messages: validatedMessages,
       };
 
-      // o3 tiene restricciones específicas
+      // Configurar parámetros según el modelo
       if (model.startsWith('o3')) {
-        requestParams.max_completion_tokens = 4000;
-        // o3 solo acepta temperature = 1 (valor por defecto)
-        requestParams.temperature = 1;
+        // o3 necesita más tokens: reasoning_tokens + completion_tokens
+        requestParams.max_completion_tokens = 8000;
+        requestParams.temperature = 1; // o3 solo acepta temperature = 1
+      } else if (model === 'gpt-4o' || model === 'gpt-4o-mini') {
+        // GPT-4o usa max_tokens estándar
+        requestParams.max_tokens = 4000;
+        requestParams.temperature = temperature;
       } else {
+        // Otros modelos (gpt-4, gpt-3.5-turbo, etc.)
         requestParams.max_tokens = 4000;
         requestParams.temperature = temperature;
       }
 
       const response = await this.openai.chat.completions.create(requestParams);
 
-      this.logger.debug(`✅ Respuesta de ${model} recibida correctamente`);
+      const content = response.choices[0]?.message?.content || '';
       
-      return response.choices[0].message.content || '';
+      this.logger.debug(`✅ Respuesta de ${model} recibida: ${content.length} chars`);
+      
+      // Debugging específico para o3
+      if (model.startsWith('o3')) {
+        this.logger.debug(`🔍 o3 response details: choices=${response.choices?.length}, finish_reason=${response.choices[0]?.finish_reason}`);
+        if (content.length === 0) {
+          this.logger.debug(`❌ o3 returned empty content. Full response:`, JSON.stringify(response, null, 2));
+        }
+      }
+      
+      return content;
     } catch (error) {
       this.logger.error(`❌ Error al llamar a la API de OpenAI: ${error.message}`, error.stack);
       
@@ -84,13 +99,77 @@ export class ChatgptService {
    * Optimizado para prompts largos y respuestas complejas
    */
   async generateFlutterCode(systemPrompt: string, userPrompt: string): Promise<string> {
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ];
+    // Intentar o3 primero con prompts optimizados
+    try {
+      this.logger.debug('🚀 Intentando generación con o3...');
+      
+      // Crear prompts específicamente optimizados para o3
+      const o3SystemPrompt = this.optimizePromptForO3(systemPrompt);
+      const o3UserPrompt = this.optimizePromptForO3(userPrompt);
+      
+      this.logger.debug(`📏 Longitud prompts para o3: system=${o3SystemPrompt.length}, user=${o3UserPrompt.length}`);
+      
+      const messages = [
+        { role: 'system', content: o3SystemPrompt },
+        { role: 'user', content: o3UserPrompt }
+      ];
+      
+      const result = await this.chat(messages, 'o3', 1);
+      
+      // Verificar que o3 devolvió contenido válido
+      if (result && result.trim().length > 100) {
+        this.logger.debug(`✅ o3 generó código exitosamente (${result.length} chars)`);
+        return result;
+      } else {
+        this.logger.warn(`⚠️ o3 devolvió respuesta vacía o muy corta (${result?.length || 0} chars)`);
+        throw new Error('o3 response too short or empty');
+      }
+    } catch (error) {
+      this.logger.error(`❌ Error con o3: ${error.message}`);
+      this.logger.debug('🔄 Fallback a GPT-4o para generación de código...');
+      
+      // Fallback a GPT-4o con prompts originales
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ];
+      
+      return this.chat(messages, 'gpt-4o', 0.2);
+    }
+  }
+
+  /**
+   * Optimiza prompts para o3 reduciéndolos y simplificándolos
+   */
+  private optimizePromptForO3(prompt: string): string {
+    // o3 usa muchos tokens para reasoning, necesitamos prompts MUY cortos
+    if (prompt.length > 1500) {
+      this.logger.debug(`🔧 Reduciendo prompt de ${prompt.length} a ~1500 chars para o3`);
+      
+      // Para o3: SOLO lo esencial
+      const lines = prompt.split('\n');
+      const criticalLines = lines.filter(line => {
+        const lower = line.toLowerCase();
+        return (
+          lower.includes('screen:') ||
+          lower.includes('homescreen') ||
+          lower.includes('doctorsscreen') ||
+          lower.includes('appointmentscreen') ||
+          lower.includes('prescriptionsscreen') ||
+          lower.includes('medicalhistoryscreen') ||
+          lower.includes('profilescreen') ||
+          lower.includes('settingsscreen') ||
+          lower.includes('loginscreen') ||
+          lower.includes('registerscreen') ||
+          line.trim().length < 80
+        );
+      });
+      
+      // Máximo 20 líneas para o3
+      return criticalLines.slice(0, 20).join('\n');
+    }
     
-    // o3 usa temperature = 1 automáticamente
-    return this.chat(messages, 'o3', 1);
+    return prompt;
   }
 
   /**
