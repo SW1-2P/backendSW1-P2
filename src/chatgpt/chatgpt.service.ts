@@ -140,9 +140,16 @@ export class ChatgptService {
 
   /**
    * Optimiza prompts para o3 reduciéndolos y simplificándolos
+   * NO truncar cuando el prompt contiene XML completo de mockup
    */
   private optimizePromptForO3(prompt: string): string {
-    // o3 usa muchos tokens para reasoning, necesitamos prompts MUY cortos
+    // Si el prompt contiene XML de mockup, NO truncar para preservar toda la información
+    if (prompt.includes('XML MOCKUP COMPLETO') || prompt.includes('<mxfile') || prompt.includes('<mxGraphModel')) {
+      this.logger.debug(`📋 Prompt contiene XML de mockup completo - NO se truncará (${prompt.length} chars)`);
+      return prompt;
+    }
+    
+    // o3 usa muchos tokens para reasoning, necesitamos prompts MUY cortos solo para otros casos
     if (prompt.length > 1500) {
       this.logger.debug(`🔧 Reduciendo prompt de ${prompt.length} a ~1500 chars para o3`);
       

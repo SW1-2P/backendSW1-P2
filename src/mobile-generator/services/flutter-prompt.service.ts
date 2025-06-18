@@ -318,6 +318,41 @@ IMPORTANTE: Cada pantalla debe tener contenido real, no placeholders.
   createSystemPrompt(): string {
     return `Eres un experto desarrollador Flutter que genera aplicaciones modernas desde mockups XML de Draw.io.
 
+**FORMATO DE RESPUESTA OBLIGATORIO:**
+DEBES usar EXACTAMENTE este formato para cada archivo generado:
+
+[FILE: ruta/del/archivo.dart]
+\`\`\`dart
+// Tu código aquí
+\`\`\`
+
+[FILE: pubspec.yaml]
+\`\`\`yaml
+# Tu código aquí
+\`\`\`
+
+EJEMPLO CORRECTO:
+[FILE: lib/main.dart]
+\`\`\`dart
+import 'package:flutter/material.dart';
+import 'app.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+\`\`\`
+
+[FILE: pubspec.yaml]
+\`\`\`yaml
+name: example_app
+description: A Flutter application
+\`\`\`
+
+❌ NO USES: separadores como ═══, ───, o cualquier otro formato
+❌ NO USES: markdown headers como # Archivo
+❌ NO USES: texto explicativo entre archivos
+✅ USA SOLO: [FILE: ruta] seguido de \`\`\`tipo
+
 ARQUITECTURA OBLIGATORIA:
 - Flutter puro con StatefulWidget para estado (NO usar Riverpod ni Provider)
 - GoRouter para navegación (go_router: ^13.0.0)
@@ -530,108 +565,68 @@ USAR FORMATO [FILE: ruta] para cada archivo generado`;
    * Crea prompt optimizado para generación desde XML (flujo original)
    */
   private createXmlBasedPrompt(context: GenerationContext, screenDetection?: any): string {
-    const structuredInstructions = this.createStructuredInstructions(context.xml!, screenDetection);
+    const xml = context.xml || '';
+    const appName = context.config?.package_name || 'MockupApp';
     
-    return `Genera una aplicación Flutter completa desde mockup XML:
+    // Contar pantallas en el XML
+    const phoneCount = (xml.match(/shape=mxgraph\.android\.phone2/g) || []).length;
+    
+    return `GENERAR APLICACIÓN FLUTTER COMPLETA DESDE XML MOCKUP
 
-ANÁLISIS DEL MOCKUP:
-${this.analyzeXmlContent(context.xml!, screenDetection)}
+**FORMATO DE RESPUESTA OBLIGATORIO:**
+Debes usar EXACTAMENTE este formato para cada archivo:
 
-${structuredInstructions}
-
-CONTEXTO ADICIONAL:
-- Prompt del usuario: ${context.prompt || 'No especificado'}
-- Configuración: ${JSON.stringify(context.config || {})}
-
-REQUERIMIENTOS ESPECÍFICOS PARA XML - IMPLEMENTACIÓN OBLIGATORIA:
-
-🚨 **PANTALLAS OBLIGATORIAS A GENERAR** (NO GENERAR OTRAS):
-${screenDetection?.screenSections ? 
-  screenDetection.screenSections.map((section, index) => 
-    `${index + 1}. **${section.title}** - ${section.description}`
-  ).join('\n') : 
-  'Detectar pantallas del XML automáticamente'
-}
-
-🚨 **PROHIBIDO GENERAR ESTAS PANTALLAS GENÉRICAS**:
-❌ HomePage (usar DashboardScreen en su lugar)
-❌ AboutPage (NO generar)
-❌ SettingsPage (NO generar)
-❌ ProfilePage (NO generar)
-❌ LoginPage (NO generar)
-
-✅ **IMPLEMENTACIÓN TÉCNICA OBLIGATORIA**:
-1. **GENERA SOLO** las pantallas específicas del análisis anterior
-2. **USA NOMBRES EXACTOS** de las pantallas detectadas (DashboardScreen, CreateProjectScreen)
-3. **INCLUYE TODOS LOS ELEMENTOS** específicos de cada pantalla (campos, botones, textos)
-4. **IMPLEMENTA FORMULARIOS REALES** con los campos detectados del XML
-5. **GENERA AppDrawer** con navegación entre las pantallas detectadas
-6. **USA COLORES ESPECÍFICOS** del mockup (#0057D8, #4C9AFF, etc.)
-7. **IMPLEMENTA RADIO BUTTONS** para permisos (Read and write, Read only, None)
-8. **AppRouter().router** (NO AppRouter.router)
-9. **ELIMINA flutter_secure_storage** del pubspec.yaml
-10. **IMPORTS CORRECTOS** para AppDrawer y app_widgets
-
-📋 **ESPECIFICACIONES DETALLADAS POR PANTALLA**:
-${screenDetection?.screenSections ? 
-  screenDetection.screenSections.map((section, index) => {
-    let spec = `\n**${section.title}:**`;
-    spec += `\n  - Archivo: ${section.title.toLowerCase().replace('screen', '')}_screen.dart`;
-    spec += `\n  - Clase: ${section.title}`;
-    if (section.texts.length > 0) {
-      spec += `\n  - Textos a incluir: ${section.texts.join(', ')}`;
-    }
-    if (section.fields.length > 0) {
-      spec += `\n  - Campos de formulario: ${section.fields.join(', ')}`;
-    }
-    if (section.buttons.length > 0) {
-      spec += `\n  - Botones: ${section.buttons.join(', ')}`;
-    }
-    if (section.radioGroups.length > 0) {
-      section.radioGroups.forEach(group => {
-        spec += `\n  - Radio Group "${group.title}": ${group.options.map(opt => opt.text).join(', ')}`;
-      });
-    }
-    return spec;
-  }).join('\n') : 
-  'No hay especificaciones detalladas disponibles'
-}
-
-ELEMENTOS DETECTADOS ADICIONALES:
-${screenDetection ? this.formatScreenDetection(screenDetection) : ''}
-
-XML COMPLETO PARA REFERENCIA:
-\`\`\`xml
-${context.xml!.substring(0, 2000) + (context.xml!.length > 2000 ? '...[truncated]' : '')}
+[FILE: ruta/del/archivo.dart]
+\`\`\`dart
+// código aquí
 \`\`\`
 
-🔍 **VALIDACIÓN CRÍTICA ANTES DE GENERAR**:
-${screenDetection?.screenSections ? 
-  screenDetection.screenSections.map((section, index) => 
-    `- ✅ ¿Generé ${section.title} con ${section.fields.length} campos y ${section.buttons.length} botones?`
-  ).join('\n') : 
-  '- ✅ ¿Generé las pantallas específicas del XML?'
-}
-- ✅ ¿NO generé HomePage, AboutPage, SettingsPage u otras pantallas genéricas?
-- ✅ ¿Incluí TODOS los textos del mockup en las pantallas correctas?
-- ✅ ¿Implementé los radio buttons para permisos (Read and write, Read only, None)?
-- ✅ ¿Usé los colores específicos del mockup (#0057D8, #4C9AFF)?
-- ✅ ¿El AppDrawer navega entre las pantallas detectadas?
-- ✅ ¿Imports correctos en todas las pantallas?
+[FILE: pubspec.yaml]
+\`\`\`yaml
+# código aquí
+\`\`\`
 
-**ARCHIVOS OBLIGATORIOS A GENERAR**:
-${screenDetection?.screenSections ? 
-  screenDetection.screenSections.map((section, index) => 
-    `${index + 1}. ${section.title.toLowerCase().replace('screen', '')}_screen.dart`
-  ).join('\n') : 
-  '1. dashboard_screen.dart\n2. create_project_screen.dart'
-}
-3. app_drawer.dart (con navegación específica)
-4. app_router.dart (con rutas específicas)
-5. app_theme.dart (con colores del mockup)
-6. main.dart y app.dart
+❌ NO uses separadores como ═══, ───, o texto explicativo
+✅ USA SOLO: [FILE: ruta] seguido de \`\`\`tipo
 
-Genera EXACTAMENTE estos archivos con la funcionalidad específica del mockup.`;
+APLICACIÓN: ${appName}
+TIPO: Flutter con Material Design 3
+
+🔍 **ANÁLISIS CRÍTICO DEL XML:**
+El XML contiene ${phoneCount} PANTALLAS MÓVILES (shape=mxgraph.android.phone2).
+DEBES GENERAR UNA SCREEN DART PARA CADA PANTALLA DETECTADA.
+
+📱 **PANTALLAS OBLIGATORIAS A GENERAR:**
+${phoneCount > 0 ? Array.from({length: phoneCount}, (_, i) => `${i + 1}. lib/features/screen${i + 1}/screens/screen${i + 1}_screen.dart`).join('\n') : 'Detectar pantallas del XML'}
+
+🚨 **INSTRUCCIONES ESPECÍFICAS PARA MÚLTIPLES PANTALLAS:**
+- Si hay ${phoneCount} pantallas → DEBES generar ${phoneCount} archivos _screen.dart
+- Cada pantalla debe tener su propio directorio en features/
+- INCLUIR Navigation Drawer automáticamente para navegar entre pantallas
+- Analizar el contenido específico de cada pantalla en el XML
+
+${this.analyzeXmlContent(xml, screenDetection)}
+
+${this.formatScreenDetection(screenDetection)}
+
+${this.createStructuredInstructions(xml, screenDetection)}
+
+GENERAR PROYECTO FLUTTER COMPLETO:
+- pubspec.yaml con dependencias correctas
+- lib/main.dart como punto de entrada
+- lib/app.dart con MaterialApp.router
+- lib/core/router/app_router.dart con GoRouter configurado para ${phoneCount} rutas
+- lib/core/themes/app_theme.dart con Material Design 3
+- lib/shared/widgets/app_widgets.dart con componentes reutilizables
+- lib/shared/widgets/app_drawer.dart (OBLIGATORIO para ${phoneCount} pantallas)
+- **${phoneCount} PANTALLAS INDIVIDUALES** en lib/features/[nombre]/screens/
+
+⚠️ **CRÍTICO**: Debes generar exactamente ${phoneCount} archivos _screen.dart, uno por cada elemento android.phone2 en el XML.
+
+IMPORTANTE: Cada archivo debe usar el formato [FILE: ruta] exacto sin variaciones.
+
+XML MOCKUP A ANALIZAR (${phoneCount} PANTALLAS):
+${xml}`;
   }
 
   /**
@@ -898,11 +893,68 @@ Genera EXACTAMENTE los archivos necesarios para implementar FIELMENTE la especif
   private createStructuredInstructions(xml: string, screenDetection?: any): string {
     const instructions: string[] = [];
     
+    // Analizar pantallas individualmente
+    const phoneMatches = xml.match(/shape=mxgraph\.android\.phone2/g) || [];
+    const phoneCount = phoneMatches.length;
+    
     instructions.push('📋 INSTRUCCIONES ESPECÍFICAS DE GENERACIÓN:');
     
-    // Instrucciones para pantallas
+    if (phoneCount > 1) {
+      instructions.push(`\n🎯 DETECTADAS ${phoneCount} PANTALLAS - GENERAR TODAS:`);
+      
+      // Analizar contenido alrededor de cada pantalla
+      const phoneElements = this.extractIndividualScreenContent(xml);
+      
+      phoneElements.forEach((screen, index) => {
+        instructions.push(`\n📱 PANTALLA ${index + 1}:`);
+        instructions.push(`   [FILE: lib/features/screen${index + 1}/screens/screen${index + 1}_screen.dart]`);
+        
+        if (screen.texts.length > 0) {
+          instructions.push(`   📝 Textos a incluir: ${screen.texts.slice(0, 5).join(', ')}`);
+        }
+        
+        if (screen.fields.length > 0) {
+          instructions.push(`   🔲 Campos de entrada: ${screen.fields.join(', ')}`);
+        }
+        
+        if (screen.buttons.length > 0) {
+          instructions.push(`   🔘 Botones: ${screen.buttons.join(', ')}`);
+        }
+        
+        if (screen.hasTable) {
+          instructions.push(`   📊 Incluir tabla con datos`);
+        }
+        
+        if (screen.hasRadioButtons) {
+          instructions.push(`   ⚪ Incluir radio buttons`);
+        }
+        
+        // Detectar tipo de pantalla por contenido
+        if (screen.texts.some(t => t.includes('Create a project'))) {
+          instructions.push(`   🎯 Tipo: Formulario de creación de proyecto`);
+          instructions.push(`   🚀 Incluir: AppRadioGroup para permisos`);
+        } else if (screen.texts.some(t => t.includes('Dashboard') || t.includes('Dasboard'))) {
+          instructions.push(`   🎯 Tipo: Pantalla dashboard principal`);
+        } else if (screen.hasTable) {
+          instructions.push(`   🎯 Tipo: Pantalla de datos con tabla`);
+        } else {
+          instructions.push(`   🎯 Tipo: Pantalla con contenido específico`);
+        }
+      });
+      
+      instructions.push(`\n🗂️ NAVIGATION DRAWER OBLIGATORIO:`);
+      instructions.push(`   [FILE: lib/shared/widgets/app_drawer.dart]`);
+      instructions.push(`   - Incluir navegación a las ${phoneCount} pantallas`);
+      instructions.push(`   - Usar context.go() y context.push() con GoRouter`);
+      
+    } else if (phoneCount === 1) {
+      instructions.push('\n🎯 PANTALLA ÚNICA DETECTADA:');
+      instructions.push('   Generar aplicación con una pantalla principal');
+    }
+    
+    // Instrucciones para pantallas específicas (compatibilidad con código existente)
     if (screenDetection?.detectedScreens?.length > 0) {
-      instructions.push('\\n🎯 PANTALLAS A GENERAR:');
+      instructions.push('\\n🎯 PANTALLAS ADICIONALES DETECTADAS:');
       screenDetection.detectedScreens.forEach((screen: string, index: number) => {
         if (screen.toLowerCase().includes('register')) {
           instructions.push(`   ${index + 1}. RegisterScreen:`);
@@ -987,6 +1039,88 @@ Genera EXACTAMENTE los archivos necesarios para implementar FIELMENTE la especif
     }
     
     return instructions.join('\\n');
+  }
+
+  /**
+   * Extrae contenido específico de cada pantalla individual
+   */
+  private extractIndividualScreenContent(xml: string): Array<{
+    texts: string[];
+    fields: string[];
+    buttons: string[];
+    hasTable: boolean;
+    hasRadioButtons: boolean;
+  }> {
+    const screens: Array<{
+      texts: string[];
+      fields: string[];
+      buttons: string[];
+      hasTable: boolean;
+      hasRadioButtons: boolean;
+    }> = [];
+    
+    // Dividir el XML por grupos de elementos cerca de cada teléfono
+    const phonePattern = /verticalLabelPosition=bottom.*?shape=mxgraph\.android\.phone2/g;
+    const phoneMatches = [...xml.matchAll(phonePattern)];
+    
+    phoneMatches.forEach((match, index) => {
+      const startPos = match.index || 0;
+      const endPos = phoneMatches[index + 1]?.index || xml.length;
+      const screenXml = xml.substring(startPos, endPos);
+      
+      // Extraer contenido específico de esta pantalla
+      const texts = this.extractTextsFromSection(screenXml);
+      const fields = this.extractFieldsFromSection(screenXml);  
+      const buttons = this.extractButtonsFromSection(screenXml);
+      const hasTable = screenXml.includes('shape=table');
+      const hasRadioButtons = screenXml.includes('shape=ellipse');
+      
+      screens.push({
+        texts,
+        fields,
+        buttons,
+        hasTable,
+        hasRadioButtons
+      });
+    });
+    
+    return screens;
+  }
+
+  private extractTextsFromSection(section: string): string[] {
+    const texts: string[] = [];
+    const textMatches = section.match(/value="([^"]+)"/g) || [];
+    textMatches.forEach(match => {
+      const text = match.replace('value="', '').replace('"', '');
+      if (text.length > 1 && !text.includes('mxgraph')) {
+        texts.push(text);
+      }
+    });
+    return texts;
+  }
+
+  private extractFieldsFromSection(section: string): string[] {
+    const fields: string[] = [];
+    const fieldMatches = section.match(/name="([^"]+)"/g) || [];
+    fieldMatches.forEach(match => {
+      const field = match.replace('name="', '').replace('"', '');
+      if (field.length > 1 && !field.includes('mxgraph')) {
+        fields.push(field);
+      }
+    });
+    return fields;
+  }
+
+  private extractButtonsFromSection(section: string): string[] {
+    const buttons: string[] = [];
+    const buttonMatches = section.match(/shape=["']ellipse["'][^>]*strokeColor/g) || [];
+    buttonMatches.forEach(match => {
+      const button = match.replace('shape="', '').replace('"', '');
+      if (button.length > 1 && !button.includes('mxgraph')) {
+        buttons.push(button);
+      }
+    });
+    return buttons;
   }
 
   private extractColorsFromXml(xml: string): string[] {
