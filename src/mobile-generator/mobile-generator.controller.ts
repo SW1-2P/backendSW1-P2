@@ -9,7 +9,8 @@ import { CreateMobileAppDto } from './dto/create-mobile-app.dto';
 import { UpdateMobileAppDto } from './dto/update-mobile-app.dto';
 import { CreateFromPromptDto } from './dto/create-from-prompt.dto';
 import { AnalyzeImageDto } from './dto/analyze-image.dto';
-import { ImageAnalysisService } from './services/image-analysis.service';
+import { ImageAnalysisService, ImageAnalysisResult } from './services/image-analysis.service';
+import { ChatgptService } from '../chatgpt/chatgpt.service';
 import { SetMetadata } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
 import { ProjectType } from './entities/mobile-app.entity';
@@ -23,7 +24,8 @@ export class MobileGeneratorController {
 
   constructor(
     private readonly mobileGeneratorService: MobileGeneratorService,
-    private readonly imageAnalysisService: ImageAnalysisService
+    private readonly imageAnalysisService: ImageAnalysisService,
+    private readonly chatGptService: ChatgptService
   ) {}
 
   @Post()
@@ -242,10 +244,9 @@ export class MobileGeneratorController {
         success: true,
         type: 'general_automatic',
         app: savedApp,
-        enrichedPrompt: (savedApp.prompt || '').substring(0, 500) + '...',
-        detectedDomain: this.extractDomainFromPrompt(savedApp.prompt || ''),
-        totalPages: this.countPagesInPrompt(savedApp.prompt || ''),
-        message: `App "${savedApp.nombre}" creada automáticamente con páginas específicas del dominio detectado`
+        aiInterpretedPrompt: (savedApp.prompt || '').substring(0, 800) + '...',
+        originalInput: createGeneralAppDto.prompt,
+        message: `App "${savedApp.nombre}" creada con interpretación completa de IA`
       };
     } catch (error) {
       this.logger.error('Error en APARTADO GENERAL:', error);
@@ -277,16 +278,16 @@ export class MobileGeneratorController {
   })
   async createDetailedApp(@Body() createDetailedAppDto: any, @GetUser() usuario: Usuario) {
     try {
-      // FLUJO APARTADO DETALLADO: Prompt detallado → Aplicar restricciones → Generación SIN enriquecimiento
-      this.logger.debug(`🎯 APARTADO DETALLADO: Creando app desde prompt específico`);
+      // FLUJO APARTADO DETALLADO: Prompt detallado → Directo al FlutterGenerator SIN restricciones genéricas
+      this.logger.debug(`🎯 APARTADO DETALLADO: Creando app desde prompt específico sin restricciones que interfieran`);
       
-      // Aplicar restricciones de Flutter para evitar errores comunes
-      const restrictedPrompt = this.applyFlutterRestrictions(createDetailedAppDto.prompt);
+      // NO aplicar restricciones genéricas - dejar que FlutterGenerator detecte el tipo y aplique su lógica
+      const originalPrompt = createDetailedAppDto.prompt;
       
-      // Crear app directamente SIN enriquecimiento pero CON restricciones aplicadas
+      // Crear app directamente CON el prompt original para que FlutterGenerator detecte el tipo correctamente
       const createMobileAppDto: CreateMobileAppDto = {
         xml: '', // No hay XML, se genera desde prompt
-        prompt: restrictedPrompt, // Usar prompt con restricciones aplicadas
+        prompt: originalPrompt, // Usar prompt original SIN restricciones que interfieran
         nombre: createDetailedAppDto.nombre || 'App Detallada',
         project_type: ProjectType.FLUTTER,
         user_id: usuario.id
@@ -344,11 +345,21 @@ export class MobileGeneratorController {
       
       if (createFromImageDto.image.startsWith('<mxfile') || createFromImageDto.image.includes('mxGraphModel')) {
         // Es un XML mockup, no una imagen
-        this.logger.debug('🔍 Detectado XML mockup en lugar de imagen');
+        this.logger.debug('🔍 Detectado XML mockup - enviando a IA para interpretación completa');
         
-        // Procesar XML mockup con restricciones
-        analysisDescription = this.processXMLMockup(createFromImageDto.image, createFromImageDto.nombre);
-        finalPrompt = this.applyFlutterRestrictions(analysisDescription);
+        // Enviar XML completo a IA para interpretación exacta (como si fuera una imagen)
+        const xmlAnalysisResult = await this.analyzeXMLWithAI(createFromImageDto.image, createFromImageDto.nombre);
+        
+        if (!xmlAnalysisResult.success || !xmlAnalysisResult.description) {
+          return {
+            success: false,
+            error: xmlAnalysisResult.error || 'Error interpretando XML mockup'
+          };
+        }
+        
+        analysisDescription = xmlAnalysisResult.description;
+        // Para XML interpretado por IA, usar directamente sin restricciones
+        finalPrompt = analysisDescription;
         
       } else {
         // Es una imagen real
@@ -374,7 +385,8 @@ export class MobileGeneratorController {
         }
 
         analysisDescription = analysisResult.description;
-        finalPrompt = this.applyFlutterRestrictions(analysisDescription);
+        // Para imágenes, usar directamente la interpretación de IA sin restricciones genéricas
+        finalPrompt = analysisDescription;
       }
 
       // Crear app desde el análisis detallado
@@ -418,13 +430,49 @@ export class MobileGeneratorController {
   }
 
   private extractDomainFromPrompt(prompt: string): string {
-    if (prompt.includes('EDUCACIÓN') || prompt.includes('educativa')) return 'EDUCACIÓN';
-    if (prompt.includes('FITNESS') || prompt.includes('gimnasio')) return 'FITNESS & GYM';
-    if (prompt.includes('DELIVERY') || prompt.includes('comida')) return 'FOOD DELIVERY';
-    if (prompt.includes('FINANZAS') || prompt.includes('contable')) return 'FINANZAS';
-    if (prompt.includes('SALUD') || prompt.includes('médico')) return 'SALUD';
-    if (prompt.includes('ECOMMERCE') || prompt.includes('tienda')) return 'E-COMMERCE';
-    if (prompt.includes('SOCIAL') || prompt.includes('chat')) return 'SOCIAL';
+    const lowerPrompt = prompt.toLowerCase();
+    
+    // Detección mejorada de dominio médico
+    if (lowerPrompt.includes('medica') || lowerPrompt.includes('médica') || 
+        lowerPrompt.includes('salud') || lowerPrompt.includes('hospital') ||
+        lowerPrompt.includes('doctor') || lowerPrompt.includes('paciente') ||
+        lowerPrompt.includes('clinica') || lowerPrompt.includes('clínica') ||
+        lowerPrompt.includes('medicina') || lowerPrompt.includes('enfermeria') ||
+        lowerPrompt.includes('farmacia') || lowerPrompt.includes('telemedicina')) {
+      return 'SALUD_MEDICO';
+    }
+    
+    if (lowerPrompt.includes('educación') || lowerPrompt.includes('educativa') || 
+        lowerPrompt.includes('escuela') || lowerPrompt.includes('estudiante') ||
+        lowerPrompt.includes('profesor') || lowerPrompt.includes('curso')) {
+      return 'EDUCACION_ESCOLAR';
+    }
+    
+    if (lowerPrompt.includes('fitness') || lowerPrompt.includes('gimnasio') ||
+        lowerPrompt.includes('ejercicio') || lowerPrompt.includes('entrenamiento')) {
+      return 'FITNESS_GYM';
+    }
+    
+    if (lowerPrompt.includes('delivery') || lowerPrompt.includes('comida') ||
+        lowerPrompt.includes('restaurante') || lowerPrompt.includes('pedido')) {
+      return 'DELIVERY_COMIDA';
+    }
+    
+    if (lowerPrompt.includes('finanzas') || lowerPrompt.includes('contable') ||
+        lowerPrompt.includes('dinero') || lowerPrompt.includes('banco')) {
+      return 'FINANZAS_CONTABLE';
+    }
+    
+    if (lowerPrompt.includes('ecommerce') || lowerPrompt.includes('tienda') ||
+        lowerPrompt.includes('venta') || lowerPrompt.includes('producto')) {
+      return 'ECOMMERCE_TIENDA';
+    }
+    
+    if (lowerPrompt.includes('social') || lowerPrompt.includes('chat') ||
+        lowerPrompt.includes('mensaje') || lowerPrompt.includes('red social')) {
+      return 'SOCIAL_CHAT';
+    }
+    
     return 'GENERAL';
   }
 
@@ -457,6 +505,103 @@ export class MobileGeneratorController {
     }
     
     return features;
+  }
+
+  /**
+   * Analiza XML mockup usando IA para interpretación completa
+   */
+  private async analyzeXMLWithAI(xmlContent: string, appName: string): Promise<ImageAnalysisResult> {
+    try {
+      this.logger.debug(`🔍 Analizando XML mockup con IA para app: ${appName}`);
+
+      const systemPrompt = `Eres un experto analista de UI/UX especializado en interpretar mockups XML de Draw.io/Diagrams.net para generar especificaciones detalladas de aplicaciones Flutter.
+
+Tu tarea es analizar el XML de mockup proporcionado y generar una descripción completa y estructurada que permita crear una aplicación Flutter funcional.
+
+INSTRUCCIONES ESPECÍFICAS:
+
+1. **ANALIZA EL CONTENIDO XML COMPLETO**:
+   - Extrae TODOS los textos y etiquetas del XML
+   - Identifica el tipo de aplicación basado en los textos reales
+   - Detecta la estructura de pantallas y navegación
+   - Identifica formularios, botones, campos de texto, radio buttons, etc.
+
+2. **INTERPRETA LA FUNCIONALIDAD REAL**:
+   - Basándote en los textos como "Dashboard", "Create a project", "Project permissions"
+   - Identifica el flujo real de la aplicación
+   - NO inventes funcionalidades que no están en el XML
+   - Usa los textos exactos para nombrar pantallas y funciones
+
+3. **GENERA ESPECIFICACIÓN DETALLADA**:
+   - Descripción general de la aplicación
+   - Lista específica de pantallas basada en el contenido XML
+   - Funcionalidades exactas detectadas en el mockup
+   - Elementos UI específicos (formularios, radio buttons, botones)
+   - Flujo de navegación basado en la estructura
+
+FORMATO DE RESPUESTA:
+Genera una descripción en español, detallada y estructurada que incluya exactamente lo que está en el XML mockup.
+
+EJEMPLO:
+"Aplicación de gestión de proyectos con las siguientes características basadas en el mockup:
+
+PANTALLAS PRINCIPALES:
+- Dashboard: Pantalla principal con título 'Dashboard'
+- Create Project: Formulario para crear proyectos con campo 'Waremelon' y 'Key'
+- Project Permissions: Configuración de permisos con radio buttons para 'Read and write', 'Read only', 'None'
+- Publish: Pantalla de publicación con botones 'Publish' y 'Cancel'
+
+FUNCIONALIDADES DETECTADAS:
+- Creación de proyectos con nombre y clave
+- Sistema de permisos granular (lectura/escritura, solo lectura, ninguno)
+- Descripción de proyectos con campo de texto largo
+- Publicación de proyectos con confirmación
+
+ELEMENTOS UI ESPECÍFICOS:
+- Campos de texto para nombre de proyecto y clave
+- Area de texto para descripción
+- Radio buttons para selección de permisos
+- Botones de acción (Publish/Cancel)
+- Navegación entre pantallas
+
+DATOS DE EJEMPLO BASADOS EN MOCKUP:
+- Proyecto: 'Waremelon'
+- Clave: 'Stash' (marcado como BETA)
+- Permisos: Radio buttons con opciones específicas detectadas"`;
+
+      const userPrompt = `Analiza este XML mockup de Draw.io y genera una especificación detallada para crear una aplicación Flutter. 
+
+Nombre de la app: ${appName}
+
+XML MOCKUP:
+${xmlContent}
+
+Interpreta EXACTAMENTE lo que está en el XML, no inventes funcionalidades adicionales.`;
+
+      // Usar ChatGPT service para interpretar el XML
+      const response = await this.chatGptService.chat([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ], 'gpt-4o', 0.3);
+
+      if (!response || !response.trim()) {
+        throw new Error('No se recibió respuesta del análisis XML');
+      }
+
+      this.logger.debug(`✅ XML mockup analizado correctamente (${response.length} caracteres)`);
+
+      return {
+        success: true,
+        description: response
+      };
+
+    } catch (error) {
+      this.logger.error(`❌ Error analizando XML mockup: ${error.message}`);
+      return {
+        success: false,
+        error: error.message || 'Error desconocido analizando XML mockup'
+      };
+    }
   }
 
   /**
@@ -657,5 +802,104 @@ IMPORTANTE: Cada pantalla debe implementar la funcionalidad específica detectad
     }
 
     return screens;
+  }
+
+  /**
+   * Extrae páginas específicas del prompt enriquecido por la IA
+   */
+  private extractSpecificPagesFromPrompt(prompt: string): string[] {
+    const pages: string[] = [];
+    
+    try {
+      // Buscar patrones de páginas en el prompt
+      const pagePatterns = [
+        /\d+\.\s*(\w+Screen[^:\n]*)/g,
+        /(\w+Screen):\s*([^\n]+)/g,
+        /- (\w+Screen[^:\n]*)/g
+      ];
+      
+      pagePatterns.forEach(pattern => {
+        const matches = prompt.match(pattern);
+        if (matches) {
+          matches.forEach(match => {
+            const cleaned = match.replace(/^\d+\.\s*|-\s*/, '').trim();
+            if (cleaned.length > 0 && !pages.includes(cleaned)) {
+              pages.push(cleaned);
+            }
+          });
+        }
+      });
+      
+      // Si no encuentra páginas específicas, buscar funcionalidades mencionadas
+      if (pages.length === 0) {
+        const functionalityPatterns = [
+          /citas/i, /doctores/i, /historial/i, /recetas/i, /medicina/i,
+          /cursos/i, /tareas/i, /calificaciones/i, /horarios/i,
+          /rutinas/i, /ejercicios/i, /progreso/i, /entrenamientos/i,
+          /productos/i, /carrito/i, /pedidos/i, /tienda/i,
+          /transacciones/i, /gastos/i, /ingresos/i, /presupuesto/i
+        ];
+        
+        functionalityPatterns.forEach(pattern => {
+          if (pattern.test(prompt)) {
+            pages.push(`${pattern.source.replace(/[/ig]/g, '')}Screen - Detectado en IA`);
+          }
+        });
+      }
+      
+    } catch (error) {
+      this.logger.error('Error extrayendo páginas específicas:', error);
+    }
+    
+    return pages.length > 0 ? pages : ['HomeScreen', 'DetailScreen', 'ProfileScreen', 'SettingsScreen'];
+  }
+
+  /**
+   * Extrae el tipo de aplicación detectado por la IA
+   */
+  private extractAppTypeFromPrompt(prompt: string): string {
+    const lowerPrompt = prompt.toLowerCase();
+    
+    // Buscar indicadores específicos del tipo de app
+    if (lowerPrompt.includes('médica') || lowerPrompt.includes('salud') || 
+        lowerPrompt.includes('hospital') || lowerPrompt.includes('doctor') ||
+        lowerPrompt.includes('citas') || lowerPrompt.includes('medicina')) {
+      return 'Aplicación Médica';
+    }
+    
+    if (lowerPrompt.includes('educativ') || lowerPrompt.includes('escolar') ||
+        lowerPrompt.includes('curso') || lowerPrompt.includes('estudiante') ||
+        lowerPrompt.includes('profesor') || lowerPrompt.includes('tarea')) {
+      return 'Aplicación Educativa';
+    }
+    
+    if (lowerPrompt.includes('fitness') || lowerPrompt.includes('gimnasio') ||
+        lowerPrompt.includes('ejercicio') || lowerPrompt.includes('entrenamiento')) {
+      return 'Aplicación de Fitness';
+    }
+    
+    if (lowerPrompt.includes('tienda') || lowerPrompt.includes('ecommerce') ||
+        lowerPrompt.includes('producto') || lowerPrompt.includes('carrito') ||
+        lowerPrompt.includes('venta')) {
+      return 'Aplicación de E-commerce';
+    }
+    
+    if (lowerPrompt.includes('delivery') || lowerPrompt.includes('comida') ||
+        lowerPrompt.includes('restaurante') || lowerPrompt.includes('pedido')) {
+      return 'Aplicación de Delivery';
+    }
+    
+    if (lowerPrompt.includes('finanza') || lowerPrompt.includes('contable') ||
+        lowerPrompt.includes('dinero') || lowerPrompt.includes('gasto') ||
+        lowerPrompt.includes('presupuesto')) {
+      return 'Aplicación Financiera';
+    }
+    
+    if (lowerPrompt.includes('social') || lowerPrompt.includes('chat') ||
+        lowerPrompt.includes('mensaje') || lowerPrompt.includes('amigo')) {
+      return 'Aplicación Social';
+    }
+    
+    return 'Aplicación General';
   }
 } 

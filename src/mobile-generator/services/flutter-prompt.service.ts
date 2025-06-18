@@ -543,20 +543,61 @@ CONTEXTO ADICIONAL:
 - Prompt del usuario: ${context.prompt || 'No especificado'}
 - Configuración: ${JSON.stringify(context.config || {})}
 
-REQUERIMIENTOS ESPECÍFICOS PARA XML:
-1. **ANALIZA EL XML** y extrae elementos específicos (botones, inputs, radio buttons, textos)
-2. **DETECTA MÚLTIPLES PANTALLAS** por número de elementos android.phone2
-3. **GENERA AppDrawer AUTOMÁTICAMENTE** si hay múltiples pantallas
-4. **USA COLORES** del mockup en el tema de la aplicación
-5. **IMPLEMENTA NAVEGACIÓN** entre pantallas con GoRouter
-6. **CORRIGE AppRouter**: usar AppRouter().router NO AppRouter.router
-7. **ELIMINA flutter_secure_storage** del pubspec.yaml
-8. **SOLO genera pantallas** que están en el mockup
-9. **INCLUYE IMPORTS OBLIGATORIOS** para AppDrawer y app_widgets
-10. **GENERA RADIO BUTTONS** para elementos ellipse con opciones específicas
-11. **INCLUYE TODOS LOS TEXTOS** del mockup en las pantallas correspondientes
+REQUERIMIENTOS ESPECÍFICOS PARA XML - IMPLEMENTACIÓN OBLIGATORIA:
 
-ELEMENTOS DETECTADOS:
+🚨 **PANTALLAS OBLIGATORIAS A GENERAR** (NO GENERAR OTRAS):
+${screenDetection?.screenSections ? 
+  screenDetection.screenSections.map((section, index) => 
+    `${index + 1}. **${section.title}** - ${section.description}`
+  ).join('\n') : 
+  'Detectar pantallas del XML automáticamente'
+}
+
+🚨 **PROHIBIDO GENERAR ESTAS PANTALLAS GENÉRICAS**:
+❌ HomePage (usar DashboardScreen en su lugar)
+❌ AboutPage (NO generar)
+❌ SettingsPage (NO generar)
+❌ ProfilePage (NO generar)
+❌ LoginPage (NO generar)
+
+✅ **IMPLEMENTACIÓN TÉCNICA OBLIGATORIA**:
+1. **GENERA SOLO** las pantallas específicas del análisis anterior
+2. **USA NOMBRES EXACTOS** de las pantallas detectadas (DashboardScreen, CreateProjectScreen)
+3. **INCLUYE TODOS LOS ELEMENTOS** específicos de cada pantalla (campos, botones, textos)
+4. **IMPLEMENTA FORMULARIOS REALES** con los campos detectados del XML
+5. **GENERA AppDrawer** con navegación entre las pantallas detectadas
+6. **USA COLORES ESPECÍFICOS** del mockup (#0057D8, #4C9AFF, etc.)
+7. **IMPLEMENTA RADIO BUTTONS** para permisos (Read and write, Read only, None)
+8. **AppRouter().router** (NO AppRouter.router)
+9. **ELIMINA flutter_secure_storage** del pubspec.yaml
+10. **IMPORTS CORRECTOS** para AppDrawer y app_widgets
+
+📋 **ESPECIFICACIONES DETALLADAS POR PANTALLA**:
+${screenDetection?.screenSections ? 
+  screenDetection.screenSections.map((section, index) => {
+    let spec = `\n**${section.title}:**`;
+    spec += `\n  - Archivo: ${section.title.toLowerCase().replace('screen', '')}_screen.dart`;
+    spec += `\n  - Clase: ${section.title}`;
+    if (section.texts.length > 0) {
+      spec += `\n  - Textos a incluir: ${section.texts.join(', ')}`;
+    }
+    if (section.fields.length > 0) {
+      spec += `\n  - Campos de formulario: ${section.fields.join(', ')}`;
+    }
+    if (section.buttons.length > 0) {
+      spec += `\n  - Botones: ${section.buttons.join(', ')}`;
+    }
+    if (section.radioGroups.length > 0) {
+      section.radioGroups.forEach(group => {
+        spec += `\n  - Radio Group "${group.title}": ${group.options.map(opt => opt.text).join(', ')}`;
+      });
+    }
+    return spec;
+  }).join('\n') : 
+  'No hay especificaciones detalladas disponibles'
+}
+
+ELEMENTOS DETECTADOS ADICIONALES:
 ${screenDetection ? this.formatScreenDetection(screenDetection) : ''}
 
 XML COMPLETO PARA REFERENCIA:
@@ -564,65 +605,71 @@ XML COMPLETO PARA REFERENCIA:
 ${context.xml!.substring(0, 2000) + (context.xml!.length > 2000 ? '...[truncated]' : '')}
 \`\`\`
 
-VALIDACIÓN REQUERIDA:
-- ✅ Generar EXACTAMENTE las pantallas del XML
-- ✅ TODOS los textos del mockup deben aparecer en las pantallas
-- ✅ Colores del mockup aplicados en AppTheme
-- ✅ Navigation drawer para múltiples pantallas
-- ✅ Imports correctos en todas las pantallas
+🔍 **VALIDACIÓN CRÍTICA ANTES DE GENERAR**:
+${screenDetection?.screenSections ? 
+  screenDetection.screenSections.map((section, index) => 
+    `- ✅ ¿Generé ${section.title} con ${section.fields.length} campos y ${section.buttons.length} botones?`
+  ).join('\n') : 
+  '- ✅ ¿Generé las pantallas específicas del XML?'
+}
+- ✅ ¿NO generé HomePage, AboutPage, SettingsPage u otras pantallas genéricas?
+- ✅ ¿Incluí TODOS los textos del mockup en las pantallas correctas?
+- ✅ ¿Implementé los radio buttons para permisos (Read and write, Read only, None)?
+- ✅ ¿Usé los colores específicos del mockup (#0057D8, #4C9AFF)?
+- ✅ ¿El AppDrawer navega entre las pantallas detectadas?
+- ✅ ¿Imports correctos en todas las pantallas?
 
-Genera MÍNIMO 6 archivos de código Flutter funcional con imports relativos correctos.`;
+**ARCHIVOS OBLIGATORIOS A GENERAR**:
+${screenDetection?.screenSections ? 
+  screenDetection.screenSections.map((section, index) => 
+    `${index + 1}. ${section.title.toLowerCase().replace('screen', '')}_screen.dart`
+  ).join('\n') : 
+  '1. dashboard_screen.dart\n2. create_project_screen.dart'
+}
+3. app_drawer.dart (con navegación específica)
+4. app_router.dart (con rutas específicas)
+5. app_theme.dart (con colores del mockup)
+6. main.dart y app.dart
+
+Genera EXACTAMENTE estos archivos con la funcionalidad específica del mockup.`;
   }
 
   /**
-   * Crea prompt optimizado para generación desde descripción de texto (prompt enriquecido)
+   * Crea prompt optimizado para generación desde descripción de texto (prompt enriquecido por IA)
    */
   private createPromptBasedPrompt(context: GenerationContext): string {
-    const enrichedPrompt = context.prompt || 'Aplicación móvil estándar';
-    const requestedFeatures = this.extractRequestedFeatures(enrichedPrompt);
-    const requiredScreens = this.extractExactScreensRequested(enrichedPrompt);
-    const shouldIncludeDrawer = requiredScreens.length > 2;
-    const domainContext = this.detectDomainContext(enrichedPrompt);
+    const aiInterpretedPrompt = context.prompt || 'Aplicación móvil estándar';
 
-    return `Genera una aplicación Flutter EXACTAMENTE como se solicita:
+    return `GENERACIÓN DE CÓDIGO FLUTTER DESDE INTERPRETACIÓN DE IA:
 
-DESCRIPCIÓN ORIGINAL DEL USUARIO:
-${enrichedPrompt}
+LA IA YA INTERPRETÓ Y ESPECIFICÓ ESTO:
+${aiInterpretedPrompt}
 
-CONTEXTO ESPECÍFICO DETECTADO:
-${domainContext}
-
-FUNCIONALIDADES ESPECÍFICAMENTE SOLICITADAS:
-${requestedFeatures}
-
-PANTALLAS QUE DEBES GENERAR (NO MÁS, NO MENOS):
-${requiredScreens.join('\n')}
-
-${shouldIncludeDrawer ? '✅ INCLUIR: Navigation drawer con las pantallas solicitadas' : '❌ NO INCLUIR: Navigation drawer (pocas pantallas)'}
+TU MISIÓN: Convertir esta ESPECIFICACIÓN TÉCNICA COMPLETA en código Flutter funcional.
 
 CONFIGURACIÓN ADICIONAL:
 ${JSON.stringify(context.config || {}, null, 2)}
 
-REQUERIMIENTOS CRÍTICOS - SOLO LO SOLICITADO:
-1. **GENERA ÚNICAMENTE** las pantallas específicamente mencionadas por el usuario
-2. **NO AGREGUES** pantallas adicionales que no fueron solicitadas
-3. **IMPLEMENTA SOLO** las funcionalidades explícitamente mencionadas
-4. **USA ARQUITECTURA LIMPIA**: Flutter + GoRouter + Material Design 3
-5. **ELIMINA flutter_secure_storage** del pubspec.yaml
-6. **IMPORTS CORRECTOS** en todos los archivos
-7. **AppRouter().router** (NO AppRouter.router)
-8. **PROHIBIDO USAR PROVIDERS**: NO usar Riverpod, Provider, ChangeNotifier, Consumer
-9. **SOLO StatefulWidget**: Para estado usar setState() únicamente
+REQUERIMIENTOS CRÍTICOS - IMPLEMENTAR SEGÚN LA ESPECIFICACIÓN IA:
+1. **LEE CUIDADOSAMENTE** toda la especificación técnica de la IA
+2. **GENERA TODAS** las pantallas que la IA especificó en su análisis
+3. **IMPLEMENTA TODAS** las funcionalidades que la IA detalló
+4. **RESPETA** la arquitectura que la IA definió para el proyecto
+5. **USA ARQUITECTURA LIMPIA**: Flutter + GoRouter + Material Design 3
+6. **NO USES ESTADOS COMPLEJOS**: NO usar Riverpod, Provider, ChangeNotifier, Consumer
+7. **SOLO StatefulWidget**: Para estado usar setState() únicamente
+8. **IMPORTS CORRECTOS** en todos los archivos
+9. **AppRouter().router** (NO AppRouter.router)
 
-ARQUITECTURA TÉCNICA MÍNIMA:
+ARQUITECTURA TÉCNICA SEGÚN LA IA:
 - Flutter puro con StatefulWidget para estado (NO usar Riverpod ni Provider)
 - GoRouter para navegación (go_router: ^13.0.0)
 - Material Design 3 con useMaterial3: true
-- Estructura simple: features/auth/screens/ para auth, etc.
-- Solo las pantallas solicitadas por el usuario
-- Navigation drawer SOLO si hay más de 2 pantallas principales
-- Formularios básicos con validación simple usando StatefulWidget
-- Estados simples (loading, error, success) con setState() donde sea necesario
+- Estructura modular según lo que definió la IA
+- TODAS las pantallas que la IA especificó en su análisis
+- Navigation drawer o BottomNav según lo que definió la IA
+- Formularios y funcionalidades según la especificación de la IA
+- Estados simples (loading, error, success) con setState() únicamente
 
 PROHIBICIONES ESTRICTAS:
 ❌ NO usar flutter_riverpod
@@ -651,10 +698,10 @@ IMPLEMENTACIÓN ESPECÍFICA REQUERIDA:
 ✅ Formularios con GlobalKey<FormState> y TextEditingController
 
 VALIDACIÓN CRÍTICA:
-- ¿Generé SOLO las pantallas que el usuario pidió?
-- ¿No agregué pantallas adicionales innecesarias?
-- ¿El drawer incluye SOLO las pantallas solicitadas?
-- ¿Los formularios corresponden a las funcionalidades pedidas?
+- ¿Implementé TODAS las pantallas que la IA especificó en su análisis?
+- ¿Respeté la arquitectura y estructura que definió la IA?
+- ¿Las funcionalidades corresponden a lo que analizó la IA?
+- ¿El drawer/bottomNav sigue lo que especificó la IA?
 - ¿NO usé ningún Provider, Riverpod o ChangeNotifier?
 - ¿Todas las pantallas usan StatefulWidget con setState()?
 - ¿No hay imports de flutter_riverpod o provider?
@@ -662,87 +709,128 @@ VALIDACIÓN CRÍTICA:
 - ¿Los colores están definidos como constantes antes de usarse?
 - ¿ColorScheme.fromSeed usa constantes, NO variables que se referencien a sí mismas?
 
-Genera EXACTAMENTE los archivos necesarios para implementar SOLO lo que el usuario solicitó - ni más, ni menos.`;
+Genera EXACTAMENTE los archivos necesarios para implementar FIELMENTE la especificación técnica de la IA.`;
   }
 
   private analyzeXmlContent(xml: string, screenDetection?: any): string {
     try {
       const analysis: string[] = [];
       
-      // DETECTAR MÚLTIPLES PANTALLAS
-      const phoneMatches = xml.match(/shape=["']mxgraph\.android\.phone2["']/g);
-      const phoneCount = phoneMatches ? phoneMatches.length : 0;
-      
-      if (phoneCount > 1) {
-        analysis.push(`🔍 MÚLTIPLES PANTALLAS DETECTADAS: ${phoneCount} pantallas → CREAR DRAWER`);
-      } else if (phoneCount === 1) {
-        analysis.push(`📱 PANTALLA ÚNICA detectada → Sin drawer`);
-      }
-      
-      // Buscar elementos de texto específicos
-      const textMatches = xml.match(/value="([^"]*)"[^>]*>/g);
-      if (textMatches) {
-        const texts = textMatches
-          .map(match => {
-            const result = match.match(/value="([^"]*)"/);
-            return result ? result[1] : null;
-          })
-          .filter((text): text is string => text !== null && text.trim().length > 0 && text !== 'Text' && text !== '')
-          .slice(0, 15);
+      // USAR LAS NUEVAS SECCIONES DE PANTALLAS SI ESTÁN DISPONIBLES
+      if (screenDetection?.screenSections && screenDetection.screenSections.length > 0) {
+        analysis.push(`🔍 SECCIONES DE PANTALLAS DETECTADAS: ${screenDetection.screenSections.length}`);
         
-        if (texts.length > 0) {
-          analysis.push(`TEXTOS DEL MOCKUP: ${texts.join(', ')}`);
+        screenDetection.screenSections.forEach((section, index) => {
+          analysis.push(`\n📱 PANTALLA ${index + 1}: ${section.title}`);
+          analysis.push(`   ${section.description}`);
           
-          // ANÁLISIS POR PANTALLA
-          const screenTitles: string[] = [];
-          const formFields: string[] = [];
-          const buttons: string[] = [];
+          if (section.texts.length > 0) {
+            analysis.push(`   📝 Textos: ${section.texts.slice(0, 5).join(', ')}${section.texts.length > 5 ? '...' : ''}`);
+          }
           
-          texts.forEach(text => {
-            const lowerText = text.toLowerCase();
-            
-            if (lowerText.includes('register') || lowerText.includes('create a project')) {
-              screenTitles.push(text);
-              analysis.push(`📋 PANTALLA: "${text}"`);
-            } else if (lowerText.includes('name') || lowerText.includes('password') || 
-                      lowerText.includes('key') || lowerText.includes('description')) {
-              formFields.push(text);
-              analysis.push(`📝 Campo: ${text}`);
-            } else if (lowerText.includes('guardar') || lowerText.includes('publish') || 
-                      lowerText.includes('cancel')) {
-              buttons.push(text);
-              analysis.push(`🔘 Botón: ${text}`);
-            }
+          if (section.fields.length > 0) {
+            analysis.push(`   🔤 Campos: ${section.fields.join(', ')}`);
+          }
+          
+          if (section.buttons.length > 0) {
+            analysis.push(`   🔘 Botones: ${section.buttons.join(', ')}`);
+          }
+          
+          if (section.radioGroups.length > 0) {
+            section.radioGroups.forEach(group => {
+              analysis.push(`   ⚪ ${group.title}: ${group.options.map(opt => opt.text).join(', ')}`);
+            });
+          }
+          
+          if (section.colors.length > 0) {
+            analysis.push(`   🎨 Colores: ${section.colors.slice(0, 3).join(', ')}`);
+          }
+        });
+        
+        // NAVEGACIÓN BASADA EN SECCIONES
+        if (screenDetection.screenSections.length > 1) {
+          analysis.push(`\n🧭 DRAWER AUTOMÁTICO - Rutas:`);
+          screenDetection.screenSections.forEach((section, index) => {
+            const route = index === 0 ? '/' : `/${section.title.toLowerCase().replace(/screen$/, '').replace(/\s+/g, '-')}`;
+            analysis.push(`   - ${route} → ${section.title}`);
           });
+        }
+        
+      } else {
+        // FALLBACK: ANÁLISIS TRADICIONAL
+        const phoneMatches = xml.match(/shape=["']mxgraph\.android\.phone2["']/g);
+        const phoneCount = phoneMatches ? phoneMatches.length : 0;
+        
+        if (phoneCount > 1) {
+          analysis.push(`🔍 MÚLTIPLES PANTALLAS DETECTADAS: ${phoneCount} pantallas → CREAR DRAWER`);
+        } else if (phoneCount === 1) {
+          analysis.push(`📱 PANTALLA ÚNICA detectada → Sin drawer`);
+        }
+        
+        // Buscar elementos de texto específicos
+        const textMatches = xml.match(/value="([^"]*)"[^>]*>/g);
+        if (textMatches) {
+          const texts = textMatches
+            .map(match => {
+              const result = match.match(/value="([^"]*)"/);
+              return result ? result[1] : null;
+            })
+            .filter((text): text is string => text !== null && text.trim().length > 0 && text !== 'Text' && text !== '')
+            .slice(0, 15);
           
-          if (screenTitles.length > 0) {
-            analysis.push(`\n🎯 PANTALLAS A GENERAR: ${screenTitles.join(' + ')}`);
+          if (texts.length > 0) {
+            analysis.push(`TEXTOS DEL MOCKUP: ${texts.join(', ')}`);
+            
+            // ANÁLISIS POR PANTALLA
+            const screenTitles: string[] = [];
+            const formFields: string[] = [];
+            const buttons: string[] = [];
+            
+            texts.forEach(text => {
+              const lowerText = text.toLowerCase();
+              
+              if (lowerText.includes('register') || lowerText.includes('create a project') || lowerText.includes('dashboard')) {
+                screenTitles.push(text);
+                analysis.push(`📋 PANTALLA: "${text}"`);
+              } else if (lowerText.includes('name') || lowerText.includes('password') || 
+                        lowerText.includes('key') || lowerText.includes('description')) {
+                formFields.push(text);
+                analysis.push(`📝 Campo: ${text}`);
+              } else if (lowerText.includes('guardar') || lowerText.includes('publish') || 
+                        lowerText.includes('cancel') || lowerText.includes('primary')) {
+                buttons.push(text);
+                analysis.push(`🔘 Botón: ${text}`);
+              }
+            });
+            
+            if (screenTitles.length > 0) {
+              analysis.push(`\n🎯 PANTALLAS A GENERAR: ${screenTitles.join(' + ')}`);
+            }
           }
         }
-      }
-      
-      // Buscar colores
-      const colorMatches = xml.match(/fillColor=([#\w]+)/g);
-      if (colorMatches) {
-        const colors = [...new Set(colorMatches.map(match => match.split('=')[1]))].slice(0, 3);
-        analysis.push(`🎨 COLORES: ${colors.join(', ')}`);
-      }
-      
-      // DETECTAR RADIO BUTTONS
-      const radioButtonMatches = xml.match(/shape=["']ellipse["'][^>]*strokeColor/g);
-      if (radioButtonMatches && radioButtonMatches.length > 0) {
-        analysis.push(`🔘 Radio buttons detectados: ${radioButtonMatches.length}`);
         
-        const radioTexts = xml.match(/Read and write|Read only|None/g);
-        if (radioTexts) {
-          analysis.push(`📋 Opciones: ${radioTexts.join(', ')}`);
+        // Buscar colores
+        const colorMatches = xml.match(/fillColor=([#\w]+)/g);
+        if (colorMatches) {
+          const colors = [...new Set(colorMatches.map(match => match.split('=')[1]))].slice(0, 3);
+          analysis.push(`🎨 COLORES: ${colors.join(', ')}`);
         }
-      }
+        
+        // DETECTAR RADIO BUTTONS
+        const radioButtonMatches = xml.match(/shape=["']ellipse["'][^>]*strokeColor/g);
+        if (radioButtonMatches && radioButtonMatches.length > 0) {
+          analysis.push(`🔘 Radio buttons detectados: ${radioButtonMatches.length}`);
+          
+          const radioTexts = xml.match(/Read and write|Read only|None/g);
+          if (radioTexts) {
+            analysis.push(`📋 Opciones: ${radioTexts.join(', ')}`);
+          }
+        }
 
-      // NAVEGACIÓN REQUERIDA
-      if (phoneCount > 1) {
-        analysis.push(`\n🧭 DRAWER OBLIGATORIO para ${phoneCount} pantallas`);
-        analysis.push(`📍 Rutas: /, /create-project`);
+        // NAVEGACIÓN REQUERIDA
+        if (phoneCount > 1) {
+          analysis.push(`\n🧭 DRAWER OBLIGATORIO para ${phoneCount} pantallas`);
+        }
       }
       
       return analysis.length > 0 ? analysis.join('\n') : 'No se encontraron elementos específicos.';
@@ -761,23 +849,47 @@ Genera EXACTAMENTE los archivos necesarios para implementar SOLO lo que el usuar
       info.push('🗂️ DRAWER AUTOMÁTICO ACTIVADO');
     }
     
-    if (screenDetection.detectedScreens?.length > 0) {
-      info.push(`📱 Pantallas: ${screenDetection.detectedScreens.join(', ')}`);
-    }
-    
-    if (screenDetection.detectedFields?.length > 0) {
-      info.push(`📝 Campos: ${screenDetection.detectedFields.join(', ')}`);
-    }
-    
-    if (screenDetection.detectedButtons?.length > 0) {
-      info.push(`🔘 Botones: ${screenDetection.detectedButtons.join(', ')}`);
-    }
-    
-    if (screenDetection.detectedRadioGroups?.length > 0) {
-      const radioInfo = screenDetection.detectedRadioGroups
-        .map((group: any) => `${group.title}: ${group.options.map((opt: any) => opt.text).join(', ')}`)
-        .join(' | ');
-      info.push(`🔘 Radio Groups: ${radioInfo}`);
+    // MOSTRAR SECCIONES DETALLADAS SI ESTÁN DISPONIBLES
+    if (screenDetection.screenSections?.length > 0) {
+      info.push(`📱 SECCIONES DETECTADAS: ${screenDetection.screenSections.length}`);
+      
+      screenDetection.screenSections.forEach((section: any, index: number) => {
+        info.push(`   ${index + 1}. ${section.title} - ${section.description}`);
+        
+        if (section.fields?.length > 0) {
+          info.push(`      📝 Campos: ${section.fields.join(', ')}`);
+        }
+        
+        if (section.buttons?.length > 0) {
+          info.push(`      🔘 Botones: ${section.buttons.join(', ')}`);
+        }
+        
+        if (section.radioGroups?.length > 0) {
+          section.radioGroups.forEach((group: any) => {
+            info.push(`      ⚪ ${group.title}: ${group.options.map((opt: any) => opt.text).join(', ')}`);
+          });
+        }
+      });
+    } else {
+      // FALLBACK: FORMATO TRADICIONAL
+      if (screenDetection.detectedScreens?.length > 0) {
+        info.push(`📱 Pantallas: ${screenDetection.detectedScreens.join(', ')}`);
+      }
+      
+      if (screenDetection.detectedFields?.length > 0) {
+        info.push(`📝 Campos: ${screenDetection.detectedFields.join(', ')}`);
+      }
+      
+      if (screenDetection.detectedButtons?.length > 0) {
+        info.push(`🔘 Botones: ${screenDetection.detectedButtons.join(', ')}`);
+      }
+      
+      if (screenDetection.detectedRadioGroups?.length > 0) {
+        const radioInfo = screenDetection.detectedRadioGroups
+          .map((group: any) => `${group.title}: ${group.options.map((opt: any) => opt.text).join(', ')}`)
+          .join(' | ');
+        info.push(`🔘 Radio Groups: ${radioInfo}`);
+      }
     }
     
     return info.join('\n');

@@ -15,33 +15,38 @@ export class PromptEnrichmentService {
   constructor(private readonly chatgptService: ChatgptService) {}
 
   /**
-   * Enriquece un prompt básico identificando automáticamente el dominio y generando páginas específicas
+   * Enriquece un prompt básico usando IA para interpretar y generar páginas específicas
    * @param originalPrompt Prompt original del usuario
-   * @returns Prompt enriquecido con páginas y funcionalidades específicas del dominio
+   * @returns Prompt enriquecido con páginas y funcionalidades específicas interpretadas por IA
    */
   async enrichPrompt(originalPrompt: string): Promise<string> {
-    try {
-      this.logger.debug(`🤖 Enriqueciendo prompt con páginas específicas: "${originalPrompt.substring(0, 50)}..."`);
-      this.logger.debug(`📏 Longitud del prompt original: ${originalPrompt.length} caracteres`);
-      
-      // 1. Detectar dominio automáticamente
-      const detectedDomain = this.detectDomainAdvanced(originalPrompt);
-      this.logger.debug(`🔍 Dominio detectado: ${detectedDomain.name}`);
-      
-      // 2. Generar páginas específicas del dominio
-      const enrichedPrompt = this.generateDomainSpecificPrompt(originalPrompt, detectedDomain);
-      
-      this.logger.debug(`📏 Prompt enriquecido: ${enrichedPrompt.length} caracteres`);
-      this.logger.debug(`✅ Prompt enriquecido con ${detectedDomain.requiredPages.length} páginas específicas`);
-      
-      return enrichedPrompt;
-      
-    } catch (error) {
-      this.logger.error(`❌ Error enriqueciendo prompt: ${error.message}`);
-      // Fallback: usar plantilla genérica
-      this.logger.debug(`🔄 Usando plantilla genérica como fallback`);
-      return this.generateGenericEnrichedPrompt(originalPrompt);
+    this.logger.debug(`🔍 Interpretando prompt: "${originalPrompt.substring(0, 50)}..."`);
+    
+    // Detectar dominio específico sin IA
+    const detectedDomain = this.detectDomainAdvanced(originalPrompt);
+    
+    if (detectedDomain.name !== 'aplicacion_generica') {
+      this.logger.debug(`🎯 Dominio detectado: ${detectedDomain.name} - generando especificación específica`);
+      return this.generateDomainSpecificPrompt(originalPrompt, detectedDomain);
     }
+    
+    // Solo intentar IA si no se detectó dominio específico Y hay API key disponible
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        this.logger.debug(`🤖 Enviando prompt a IA para interpretación completa`);
+        const aiInterpretedPrompt = await this.sendToAIForInterpretation(originalPrompt);
+        this.logger.debug(`✅ IA interpretó y enriqueció el prompt exitosamente`);
+        return aiInterpretedPrompt;
+    } catch (error) {
+        this.logger.error(`❌ Error en interpretación de IA: ${error.message}`);
+        this.logger.warn(`⚠️ Fallback a plantilla genérica`);
+      }
+    } else {
+      this.logger.warn(`⚠️ Sin API key de OpenAI - usando detección por keywords`);
+    }
+    
+    // Fallback final: plantilla genérica
+    return this.generatePromptWithBasicRules(originalPrompt);
   }
 
   /**
@@ -190,7 +195,7 @@ PANTALLAS MÍNIMAS TOTALES: ${domain.requiredPages.length + 4} (${domain.require
       // SALUD/MÉDICO
       {
         name: 'salud_medico',
-        keywords: ['medico', 'hospital', 'paciente', 'cita', 'salud', 'clinica', 'doctor'],
+        keywords: ['medico', 'médico', 'medica', 'médica', 'hospital', 'paciente', 'cita', 'salud', 'clinica', 'clínica', 'doctor', 'medicina', 'aplicacion medica', 'aplicación médica', 'enfermeria', 'farmacia', 'telemedicina'],
         requiredPages: [
           'HomeScreen: Dashboard de salud con próximas citas y recordatorios',
           'DoctorsScreen: Lista de médicos disponibles con especialidades',
@@ -295,6 +300,163 @@ PANTALLAS MÍNIMAS TOTALES: ${domain.requiredPages.length + 4} (${domain.require
         'Persistencia de datos local'
       ]
     };
+  }
+
+  /**
+   * Envía el prompt a la IA con reglas claras para interpretación completa y detallada
+   */
+  private async sendToAIForInterpretation(originalPrompt: string): Promise<string> {
+    const interpretationPrompt = `
+SISTEMA EXPERTO EN ARQUITECTURA DE APLICACIONES MÓVILES FLUTTER
+
+MISIÓN: Interpretar "${originalPrompt}" y generar una ESPECIFICACIÓN TÉCNICA ULTRA-DETALLADA que o3 pueda convertir directamente en código Flutter funcional.
+
+ENTRADA DEL USUARIO:
+"${originalPrompt}"
+
+REGLAS OBLIGATORIAS PARA LA ESPECIFICACIÓN:
+
+1. 🎯 IDENTIFICACIÓN DEL DOMINIO:
+   - Detectar EXACTAMENTE qué tipo de aplicación es
+   - Especificar el dominio (médica, educativa, e-commerce, fitness, finanzas, etc.)
+   - Definir el público objetivo y caso de uso principal
+
+2. 📱 PÁGINAS ESPECÍFICAS DETALLADAS (MÍNIMO 6):
+   Para cada página, especificar:
+   - Nombre exacto de la clase (ej: AppointmentsScreen, DoctorsListScreen)
+   - Propósito específico y funcionalidad principal
+   - Componentes UI específicos (AppBar, Body, FAB, BottomNav, etc.)
+   - Estados que maneja (loading, error, success, empty)
+   - Formularios con campos específicos y validaciones
+   - Acciones de usuario (tap, scroll, submit, etc.)
+   - Navegación hacia otras pantallas
+
+3. 🏗️ ARQUITECTURA TÉCNICA ESPECÍFICA:
+   - Estructura de directorios exacta
+   - Nombres de archivos específicos
+   - Imports y dependencias necesarias
+   - Modelos de datos con propiedades exactas
+   - Servicios y controladores necesarios
+
+4. 🎨 DISEÑO UI ESPECÍFICO:
+   - Widgets específicos para cada pantalla
+   - Layout detallado (Column, Row, ListView, etc.)
+   - Colores, iconos y tipografía específica
+   - Responsive design considerations
+   - Material Design 3 components específicos
+
+5. 🔄 FLUJO DE NAVEGACIÓN DETALLADO:
+   - GoRouter routes específicas con paths exactos
+   - Transiciones entre pantallas
+   - Bottom navigation o drawer específico
+   - Deep linking structure
+
+6. 💾 GESTIÓN DE DATOS ESPECÍFICA:
+   - Modelos de datos exactos con tipos
+   - Métodos CRUD específicos
+   - Estados locales con StatefulWidget
+   - Validación de formularios específica
+
+FORMATO DE RESPUESTA OBLIGATORIO:
+
+ESPECIFICACIÓN TÉCNICA DETALLADA PARA o3:
+
+══════════════════════════════════════════
+📋 TIPO DE APLICACIÓN IDENTIFICADA
+══════════════════════════════════════════
+[Especificar dominio exacto y propósito]
+
+══════════════════════════════════════════
+📱 PÁGINAS ESPECÍFICAS (mínimo 6)
+══════════════════════════════════════════
+1. PÁGINA: [NombreExactoScreen]
+   - PROPÓSITO: [función específica]
+   - UI COMPONENTS: [widgets específicos]
+   - FORMULARIOS: [campos y validaciones exactas]
+   - ACCIONES: [funciones específicas]
+   - NAVEGACIÓN: [hacia qué pantallas]
+
+[Repetir para cada página con MÁXIMO DETALLE]
+
+══════════════════════════════════════════
+🏗️ ARQUITECTURA FLUTTER ESPECÍFICA
+══════════════════════════════════════════
+- ESTRUCTURA DE DIRECTORIOS: [exacta]
+- ARCHIVOS NECESARIOS: [lista completa]
+- MODELOS DE DATOS: [con propiedades específicas]
+- SERVICIOS: [métodos específicos]
+
+══════════════════════════════════════════
+🎨 DISEÑO UI DETALLADO
+══════════════════════════════════════════
+- LAYOUT ESPECÍFICO: [widgets y estructura]
+- NAVEGACIÓN: [BottomNav/Drawer específico]
+- COLORES Y TEMA: [Material Design 3 específico]
+
+══════════════════════════════════════════
+🔄 FLUJO DE NAVEGACIÓN COMPLETO
+══════════════════════════════════════════
+- ROUTES: [paths específicos con GoRouter]
+- TRANSICIONES: [entre pantallas específicas]
+
+IMPORTANTE: 
+- Cada página debe tener FUNCIONALIDAD ESPECÍFICA del dominio detectado
+- No usar términos genéricos como "ListScreen" sino nombres específicos como "PatientListScreen", "AppointmentsScreen", etc.
+- Especificar TODOS los campos de formularios, botones, y funcionalidades
+- Dar suficiente detalle para que o3 pueda generar código Flutter completo y funcional
+    `;
+
+    try {
+      const messages = [
+        { role: 'system', content: 'Eres un arquitecto de software senior especializado en Flutter que genera especificaciones técnicas ultra-detalladas para que o3 pueda convertir en código funcional.' },
+        { role: 'user', content: interpretationPrompt }
+      ];
+      
+      // Usar GPT-4o para interpretación detallada
+      const response = await this.chatgptService.chat(messages, 'gpt-4o', 0.2);
+      return response;
+    } catch (error) {
+      this.logger.error('Error llamando a IA para interpretación:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Genera prompt con reglas básicas como fallback
+   */
+  private generatePromptWithBasicRules(originalPrompt: string): string {
+    return `
+${originalPrompt}
+
+ESPECIFICACIÓN TÉCNICA AUTOMÁTICA:
+
+PÁGINAS PRINCIPALES (mínimo 4):
+1. HomeScreen: Pantalla principal con funcionalidades principales
+2. ListScreen: Lista de elementos principales de la aplicación  
+3. DetailScreen: Vista detallada de elementos individuales
+4. FormScreen: Formulario para crear/editar elementos
+5. ProfileScreen: Perfil de usuario
+6. SettingsScreen: Configuraciones de la aplicación
+
+FUNCIONALIDADES BASE:
+- Sistema de autenticación (login/registro)
+- CRUD completo de elementos principales
+- Navegación fluida entre pantallas
+- Formularios con validación
+- Estados de carga y error
+- Búsqueda y filtros
+- Persistencia de datos
+
+ESPECIFICACIONES TÉCNICAS:
+- Flutter con Material Design 3
+- GoRouter para navegación
+- Provider o Riverpod para manejo de estado
+- Validación de formularios reactiva
+- Diseño responsive
+- Componentes reutilizables
+
+TOTAL DE PANTALLAS: 6 principales + pantallas de autenticación
+    `;
   }
 
   /**
